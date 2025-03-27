@@ -1,27 +1,44 @@
-version: '3.7'
+version: '3'
 
 services:
   n8n:
     image: n8nio/n8n:latest
     container_name: n8n
     environment:
-      - N8N_HOST=localhost
-      - N8N_PORT=5678
-      - N8N_PROTOCOL=http
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=n8n
-      - N8N_BASIC_AUTH_PASSWORD=password
+      - N8N_BASIC_AUTH_ACTIVE=${N8N_BASIC_AUTH_ACTIVE}
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD}
+      - N8N_HOST=${N8N_HOST}
+      - N8N_PORT=${N8N_PORT}
+      - N8N_PROTOCOL=${N8N_PROTOCOL}
+      
+      - DB_TYPE=${DB_TYPE}
+      - DB_POSTGRESDB_HOST=${DB_POSTGRESDB_HOST}
+      - DB_POSTGRESDB_PORT=${DB_POSTGRESDB_PORT}
+      - DB_POSTGRESDB_DATABASE=${DB_POSTGRESDB_DATABASE}
+      - DB_POSTGRESDB_USER=${DB_POSTGRESDB_USER}
+      - DB_POSTGRESDB_PASSWORD=${DB_POSTGRESDB_PASSWORD}
+      
+      - GENERIC_TIMEZONE=${GENERIC_TIMEZONE}
     ports:
-      - "5678:5678"  # n8n web interface
+      - ${N8N_PORT}:${N8N_PORT}
     volumes:
-      - ./n8n_data:/home/node/.n8n  # Data persistence for n8n
-    networks:
-      - n8n_network
+      - ~/.n8n:/root/.n8n
+      - ./n8n_data:/home/node/.n8n
+    depends_on:
+      - postgres
     restart: always
 
-  # شما می‌توانید اینجا سرویس‌های خود را که به صورت جداگانه اجرا می‌شوند، اضافه کنید. 
-  # هر سرویس می‌تواند به صورت مستقل با n8n ارتباط برقرار کند.
+  postgres:
+    image: postgres:13
+    container_name: postgres
+    environment:
+      - POSTGRES_USER=${DB_POSTGRESDB_USER}
+      - POSTGRES_PASSWORD=${DB_POSTGRESDB_PASSWORD}
+      - POSTGRES_DB=${DB_POSTGRESDB_DATABASE}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
 
-networks:
-  n8n_network:
-    driver: bridge
+volumes:
+  postgres_data:
