@@ -1,0 +1,27 @@
+version: '3.7'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=n8n
+      - N8N_BASIC_AUTH_PASSWORD=password
+    ports:
+      - "5678:5678"  # n8n web interface
+    volumes:
+      - ./n8n_data:/home/node/.n8n  # Data persistence for n8n
+    networks:
+      - n8n_network
+    restart: always
+
+  # شما می‌توانید اینجا سرویس‌های خود را که به صورت جداگانه اجرا می‌شوند، اضافه کنید. 
+  # هر سرویس می‌تواند به صورت مستقل با n8n ارتباط برقرار کند.
+
+networks:
+  n8n_network:
+    driver: bridge
