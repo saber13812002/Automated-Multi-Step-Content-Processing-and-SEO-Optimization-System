@@ -21,7 +21,8 @@ services:
     ports:
       - ${N8N_PORT}:${N8N_PORT}
     volumes:
-      - ./n8n_data:/home/node/.n8n
+      - n8n_storage:/home/node/.n8n
+      - ./shared:/data/shared
     restart: always
 
   postgres:
