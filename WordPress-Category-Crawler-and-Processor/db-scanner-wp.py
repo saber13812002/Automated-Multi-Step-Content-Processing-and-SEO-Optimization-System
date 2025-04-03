@@ -151,15 +151,18 @@ def main():
     if not connection:
         return
 
-    if args.category_id:
+    category_index = args.category_id
+    print(category_index)
+    if category_index:
         # اگر شناسه دسته‌بندی از طریق پارامتر ارائه شده باشد
         cursor = connection.cursor()
-        cursor.execute("SELECT term_id, name, slug FROM wp_terms WHERE term_id = %s", (args.category_id,))
+
+        cursor.execute("SELECT t.term_id, t.name, t.slug  FROM wp_terms t  WHERE t.term_id IN (      SELECT tt.term_id      FROM wp_term_taxonomy tt      WHERE tt.taxonomy = 'category'       AND tt.term_id =  %s );", (category_index,))
         selected_category = cursor.fetchone()
         cursor.close()
         
         if not selected_category:
-            print(f"دسته‌بندی با شناسه {args.category_id} یافت نشد.")
+            print(f"دسته‌بندی با شناسه {category_index} یافت نشد.")
             return
     else:
         # نمایش دسته‌بندی‌ها و درخواست ورودی از کاربر (کد قبلی)
@@ -168,11 +171,12 @@ def main():
         for i, category in enumerate(categories, 1):
             print(f"{i}. {category[1]} (ID: {category[0]})")
 
-        category_index = int(input("\nشماره دسته‌بندی مورد نظر را وارد کنید: ")) - 1
-        selected_category = categories[category_index]
+        category_index = int(input("\شناسه دسته‌بندی مورد نظر را وارد کنید: "))
+        print(category_index)
+        print(categories)
 
     # دریافت پست‌های دسته‌بندی انتخاب شده
-    posts = get_posts_by_category(connection, selected_category[0])
+    posts = get_posts_by_category(connection, category_index)
     
     # ایجاد فایل‌های خروجی
     bat_content = []
@@ -221,7 +225,7 @@ def main():
     laravel_connection = connect_to_laravel_database()
     if laravel_connection:
         create_media_table(laravel_connection)
-        save_to_database(laravel_connection, post_data, selected_category[0])
+        save_to_database(laravel_connection, post_data, category_index)
         laravel_connection.close()
 
     connection.close()
