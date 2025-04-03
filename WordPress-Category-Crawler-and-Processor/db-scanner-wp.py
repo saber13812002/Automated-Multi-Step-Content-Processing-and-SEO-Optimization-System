@@ -99,6 +99,7 @@ def connect_to_laravel_database():
 def create_media_table(connection):
     try:
         cursor = connection.cursor()
+        
         create_table_query = """
         CREATE TABLE IF NOT EXISTS asil_tv_medias (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -107,6 +108,7 @@ def create_media_table(connection):
             post_url VARCHAR(255) NOT NULL,
             media_url VARCHAR(255) NOT NULL,
             local_file VARCHAR(255) NOT NULL,
+            downloaded_at TIMESTAMP NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE KEY unique_post_media (post_id, media_url)
         )
