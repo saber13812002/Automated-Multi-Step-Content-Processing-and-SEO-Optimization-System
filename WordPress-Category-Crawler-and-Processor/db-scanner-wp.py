@@ -82,6 +82,65 @@ def scan_post_for_media(connection, url, post_id):
 
     return media_urls
 
+def connect_to_laravel_database():
+    try:
+        connection = mysql.connector.connect(
+            host=os.getenv('DB_HOST_LARAVEL', 'localhost'),
+            port=os.getenv('DB_PORT_LARAVEL', '3306'),
+            user=os.getenv('DB_USER_LARAVEL'),
+            password=os.getenv('DB_PASSWORD_LARAVEL'),
+            database=os.getenv('DB_NAME_LARAVEL')
+        )
+        return connection
+    except mysql.connector.Error as err:
+        print(f"خطا در اتصال به دیتابیس لاراول: {err}")
+        return None
+
+def create_media_table(connection):
+    try:
+        cursor = connection.cursor()
+        create_table_query = """
+        CREATE TABLE IF NOT EXISTS asil_tv_medias (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            post_id INT NOT NULL,
+            category_id INT NOT NULL,
+            post_url VARCHAR(255) NOT NULL,
+            media_url VARCHAR(255) NOT NULL,
+            local_file VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY unique_post_media (post_id, media_url)
+        )
+        """
+        cursor.execute(create_table_query)
+        connection.commit()
+        cursor.close()
+    except mysql.connector.Error as err:
+        print(f"خطا در ایجاد جدول: {err}")
+
+def save_to_database(connection, post_data, category_id):
+    try:
+        cursor = connection.cursor()
+        insert_query = """
+        INSERT IGNORE INTO asil_tv_medias 
+        (post_id, category_id, post_url, media_url, local_file)
+        VALUES (%s, %s, %s, %s, %s)
+        """
+        for data in post_data:
+            values = (
+                data['post_id'],
+                category_id,
+                data['post_url'],
+                data['media_url'],
+                data['local_file']
+            )
+            cursor.execute(insert_query, values)
+        
+        connection.commit()
+        cursor.close()
+        print("اطلاعات با موفقیت در دیتابیس ذخیره شد.")
+    except mysql.connector.Error as err:
+        print(f"خطا در ذخیره اطلاعات: {err}")
+
 def main():
     # اضافه کردن پارسر آرگومان‌های خط فرمان
     parser = argparse.ArgumentParser(description='اسکنر دسته‌بندی وردپرس')
@@ -157,6 +216,13 @@ def main():
     print("1. download.bat - برای دانلود با wget")
     print("2. download_urls.txt - برای دانلود با Download Accelerator")
     print("3. post_data.txt - اطلاعات کامل پست‌ها و فایل‌های مدیا")
+
+    # اتصال به دیتابیس لاراول و ایجاد جدول
+    laravel_connection = connect_to_laravel_database()
+    if laravel_connection:
+        create_media_table(laravel_connection)
+        save_to_database(laravel_connection, post_data, selected_category[0])
+        laravel_connection.close()
 
     connection.close()
 
