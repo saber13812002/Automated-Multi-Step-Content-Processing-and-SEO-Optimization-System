@@ -110,9 +110,15 @@ def create_media_table(connection):
             local_file VARCHAR(255) NOT NULL,
             downloaded_at TIMESTAMP NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            subtitle_raw_path VARCHAR(255) NULL, -- مسیر فایل زیرنویس خام
+            subtitle_clean_path VARCHAR(255) NULL, -- مسیر فایل زیرنویس تمیز شده
+            subtitle_asr_path VARCHAR(255) NULL, -- مسیر فایل زیرنویس نسخه دوم (_asr.srt)
+            mp3_path VARCHAR(255) NULL, -- مسیر فایل MP3
+            status ENUM('pending', 'completed', 'error') DEFAULT 'pending', -- وضعیت دانلود
             UNIQUE KEY unique_post_media (post_id, media_url)
         )
         """
+
         cursor.execute(create_table_query)
         connection.commit()
         cursor.close()
@@ -226,11 +232,35 @@ def main():
     # اتصال به دیتابیس لاراول و ایجاد جدول
     laravel_connection = connect_to_laravel_database()
     if laravel_connection:
+        alter_media_table(laravel_connection) 
         create_media_table(laravel_connection)
         save_to_database(laravel_connection, post_data, category_index)
         laravel_connection.close()
 
     connection.close()
+
+
+def alter_media_table(connection):
+    try:
+        cursor = connection.cursor()
+        
+        # اضافه کردن فیلدهای جدید به جدول
+        alter_table_query = """
+        ALTER TABLE asil_tv_medias 
+        ADD COLUMN IF NOT EXISTS subtitle_raw_path VARCHAR(255) NULL, -- مسیر فایل زیرنویس خام
+        ADD COLUMN IF NOT EXISTS subtitle_clean_path VARCHAR(255) NULL, -- مسیر فایل زیرنویس تمیز شده
+        ADD COLUMN IF NOT EXISTS subtitle_asr_path VARCHAR(255) NULL, -- مسیر فایل زیرنویس نسخه دوم (_asr.srt)
+        ADD COLUMN IF NOT EXISTS mp3_path VARCHAR(255) NULL, -- مسیر فایل MP3
+        ADD COLUMN IF NOT EXISTS status ENUM('pending', 'completed', 'error') DEFAULT 'pending'; -- وضعیت دانلود
+        """
+        
+        cursor.execute(alter_table_query)
+        connection.commit()
+        cursor.close()
+        print("فیلدهای جدید با موفقیت به جدول اضافه شدند.")
+    except mysql.connector.Error as err:
+        print(f"خطا در بروزرسانی جدول: {err}")
+
 
 if __name__ == "__main__":
     main()
