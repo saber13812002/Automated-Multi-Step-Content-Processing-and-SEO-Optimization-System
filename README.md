@@ -1,5 +1,10 @@
 # Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System
 
+## n8n
+
+ - run docker n8n from readme.md n8n folder in tools
+ - run gitlab
+
 
 first backup from server tvdb
 
