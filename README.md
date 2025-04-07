@@ -21,6 +21,8 @@ then restore from backup
 
 PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System> py .\WordPress-Category-Crawler-and-Processor\db-scanner-wp.py --category_id=96
 
+py .\WordPress-Category-Crawler-and-Processor\db-scanner-wp.py --category_id=96
+
 
 
 PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System> py .\WordPress-Category-Crawler-and-Processor\download-media.py
