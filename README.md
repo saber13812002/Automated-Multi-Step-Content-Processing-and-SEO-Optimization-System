@@ -6,6 +6,8 @@
  - run gitlab
 
 
+## 
+
 first backup from server tvdb
 
 make sure your mysql is running and my.ini 
@@ -31,3 +33,20 @@ py .\WordPress-Category-Crawler-and-Processor\db-scanner-wp.py --category_id=96
 
 
 PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System> py .\WordPress-Category-Crawler-and-Processor\download-media.py
+
+
+why in this ssh when i clock on cursor chat box ^[[0 typed there?
+
+C:\Users\User\AppData\Local\Microsoft\WindowsApps\python.exe
+
+
+powershell -Command "Invoke-WebRequest -Uri https://www.python.org/ftp/python/3.11.5/python-3.11.5-amd64.exe -OutFile python-installer.exe" && echo "دانلود پایتون انجام شد. در حال نصب..." && python-installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 && echo "پایتون با موفقیت نصب شد. لطفا ترمینال را مجدداً باز کنید."
+"دانلود پایتون انجام شد. در حال نصب..." 
+"پایتون با موفقیت نصب شد. لطفا ترمینال را مجدداً باز کنید."
+
+
+pip install whisper openai-whisper && echo "ماژول whisper با موفقیت نصب شد" && py subAlljob.py --directory ./96    
+
+py -m pip install pydub
+
+py subAlljob.py --directory ./96
