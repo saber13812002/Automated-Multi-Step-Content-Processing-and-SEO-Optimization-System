@@ -6,6 +6,12 @@
 bash
 پاکسازی ساده فایل SRT (خروجی به صورت TXT)
 
+
+install python
+
+pip install -r requirements.txt
+
+
 python srt_cleaner.py input.srt
 
 تعیین مسیر فایل خروجی
