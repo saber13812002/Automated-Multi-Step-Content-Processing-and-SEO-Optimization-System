@@ -17,3 +17,19 @@
 
 
 
+# نحوه استفاده از اسکریپت تولید زیرنویس خودکار
+
+## پیش‌نیازها
+- پایتون 3.11 یا بالاتر
+- نصب کتابخانه‌های مورد نیاز:
+  ```bash
+  pip install whisper openai-whisper pydub
+  ```
+
+## دستور اجرا
+
+```bash
+py subAlljob.py --directory ./96 --language fa 
+```
+
+   
