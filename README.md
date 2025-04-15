@@ -1,5 +1,21 @@
 # Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System
 
+
+This project is an Automated Multi-Step Content Processing and SEO Optimization System based on AI tools. 
+
+It is designed to automate various content processing and optimization tasks, including subtitle generation, WordPress category crawling and processing, and media download.
+
+Main Function Points
+Automated subtitle generation
+Automated WordPress category crawling and processing
+Automated media download
+Batchfile
+TypeScript
+
+
+
+
+
 ## n8n
 
  - run docker n8n from readme.md n8n folder in tools
@@ -43,7 +59,8 @@ C:\Users\User\AppData\Local\Microsoft\WindowsApps\python.exe
 powershell -Command "Invoke-WebRequest -Uri https://www.python.org/ftp/python/3.11.5/python-3.11.5-amd64.exe -OutFile python-installer.exe" && echo "دانلود پایتون انجام شد. در حال نصب..." && python-installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 && echo "پایتون با موفقیت نصب شد. لطفا ترمینال را مجدداً باز کنید."
 "دانلود پایتون انجام شد. در حال نصب..." 
 "پایتون با موفقیت نصب شد. لطفا ترمینال را مجدداً باز کنید."
-
+License
+The project does not specify a license, so the default copyright applies.
 
 pip install whisper openai-whisper && echo "ماژول whisper با موفقیت نصب شد" && py subAlljob.py --directory ./96    
 
