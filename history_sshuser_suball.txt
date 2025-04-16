@@ -1,0 +1,351 @@
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+
+
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+
+
+
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+
+PS C:\Users\office000\Documen                                                                                                         
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-ProcessinPS C:\Users\office000\Documen
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+PS C:\Users\office000\Documen
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>       ojects\asil\Automated-Multi-Step-Content-Process
+PS C:\Users\office000\Documen
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>     projects\asil\Automated-Multi-Step-Content-Process
+PS C:\Users\office000\Documen
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System>
+PS C:\Users\office000\Documents\saberprojects\asil\Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System> ssh DESKTOP-HU6CFCK.asil.com
+The authenticity of host 'desktop-hu6cfck.asil.com (192.168.2.222)' can't be established.
+ED25519 key fingerprint is SHA256:MR9jpTicxS7NldCi+aRLdJNq1KYUSsJRUUBCl32BXcY.
+This host key is known by the following other names/addresses:
+Microsoft Windows [Version 10.0.26100.2894]
+(c) Microsoft Corporation. All rights reserved.
+
+sshuser@DESKTOP-HU6CFCK C:\Users\sshuser>powershell
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+
+PS C:\Users\sshuser> cd ..
+PS C:\Users> cd .\User
+PS C:\Users\User> py
+No installed Python found!
+PS C:\Users\User> dir
+
+
+    Directory: C:\Users\User
+
+
+Mode                 LastWriteTime         Length Name
+----                 -------------         ------ ----
+d-----         2/17/2025  11:03 PM                .cache
+d-----         2/16/2025  11:54 PM                .cursor
+d-----         3/29/2025   6:33 PM                .ollama
+d-----         2/17/2025   6:26 PM                .ssh
+d-----         4/11/2025   3:28 AM                96
+d-r---        12/22/2024   3:21 AM                Contacts
+d-r---          4/8/2025   6:55 PM                Desktop
+d-r---          4/7/2025   9:23 PM                Documents
+d-r---          4/9/2025  11:09 PM                Downloads
+d-r---        12/22/2024   3:21 AM                Favorites
+d-----         2/20/2025   8:41 PM                feghh
+d-----          4/8/2025   8:18 PM                filmizan
+d-----         3/29/2025   7:57 PM                fiqh
+d-----          4/6/2025   7:41 PM                ganj
+d-r---        12/22/2024   3:21 AM                Links
+d-r---          2/8/2025   4:08 PM                Music
+d-----         3/29/2025   4:52 PM                myenv
+d-----         2/18/2025  12:44 AM                noor
+d-r---         4/10/2025   6:52 PM                Pictures
+d-r---        12/22/2024   3:21 AM                Saved Games
+d-r---        12/21/2024   7:40 PM                Searches
+d-----         4/11/2025   2:53 AM                tarb
+d-----          4/3/2025   6:56 PM                test
+d-r---          4/3/2025  10:07 PM                Videos
+d-----         2/19/2025   8:05 PM                القسم الأول
+d-----         2/19/2025   8:06 PM                سندهای کتابخانه
+-a----         3/29/2025   5:09 PM            126 .gitconfig
+-a----          4/5/2025   8:01 PM            723 .gitignore
+-a----         2/17/2025   9:12 PM          13469 00011.srt
+-a----         2/17/2025  10:07 PM          15502 001.srt
+-a----         2/17/2025   9:31 PM          17754 015.srt
+-a----         2/17/2025   9:39 PM          16019 030.srt
+-a----         2/15/2025  12:04 AM      590076724 07 Felestin Al
+                                                  Somud-7.m4v
+-a----         2/17/2025   8:12 PM          40721 07 Felestin Al
+                                                  Somud-7.srt
+-a----         9/21/2023   1:59 PM         814403 1 (2).jpg
+-a----         2/19/2025   9:31 PM           3699 1 (2).jpg.txt
+-a----         2/19/2025   9:31 PM           3858 1 (2).txt
+-a----         2/19/2025   9:46 PM           4988 1 (2)_rtl.txt
+-a----         2/17/2025  10:17 PM          14853 2.srt
+-a----         2/17/2025   6:13 PM           6942 all_powershell_history. 
+                                                  txt
+-a----         2/17/2025   6:40 PM           9698 all_powershell_history2 
+                                                  .txt
+-a----         2/20/2025   6:15 PM          16428 all_powershell_history3 
+                                                  .txt
+-a----          4/5/2025   8:26 PM            465 AraBERT.py
+-a----         3/29/2025   5:16 PM           1829 client_seo.py
+-a----         3/29/2025   6:14 PM           1829 clinet_seo.py
+-a----         2/17/2025  10:57 PM           4996 content_analyzer.py     
+-a----         3/29/2025  10:22 PM             82 errror deepseek
+                                                  671b.txt
+-a----          4/5/2025   8:35 PM           2733 extract_quran_hadith_fr 
+                                                  om_srt.py
+-a----         2/17/2025   7:21 PM           1025 import-whisper.py       
+-a----         2/17/2025   8:32 PM           1873 import_whisperPercent.p 
+                                                  y
+-a----         2/19/2025   8:33 PM            625 ocr.py
+-a----         2/19/2025  10:01 PM           2017 ocrai.py
+-a----         3/29/2025   4:46 PM            626 ollama_api.py
+-a----         2/19/2025  10:02 PM           3568 output.txt
+-a----         2/17/2025   6:11 PM           3464 powershell_history.txt  
+-a----          4/8/2025   6:40 PM            186 readme.md
+-a----         3/29/2025   7:48 PM           4083 srt_asr.py
+-a----         3/29/2025   6:52 PM           2710 srt_cleaner.py
+-a----         3/29/2025   6:54 PM            618 srt_cleaner_readme.md
+-a----         2/17/2025   9:02 PM           2220 sub.py
+-a----          4/3/2025   2:34 PM           4040 subAlljob.py
+-a----         3/29/2025   6:17 PM           2970 subtitle_qcri.py
+-a----         2/17/2025   7:25 PM           1025 whisper_srt.py                                                             -a----          4/7/2025   6:47 PM              0 xcopy                                                                                                                                                                                                                                                                                                                                
+PS C:\Users\User> powershell
+Windows PowerShell
+Copyright (C) Microsoft Corporation. All rights reserved.
+
+Install the latest PowerShell for new features and improvements! https://aka.ms/PSWindows
+
+PS C:\Users\User> cmd     
+Microsoft Windows [Version 10.0.26100.2894]
+(c) Microsoft Corporation. All rights reserved.
+
+sshuser@DESKTOP-HU6CFCK C:\Users\User>echo $TERM                               
+$TERM
+
+sshuser@DESKTOP-HU6CFCK C:\Users\User>where python || echo "Python not found in PATH" && echo "Checking other user directories:" && dir C:\Users\*\AppData\Local\Programs\Python /s /b 2>nul || echo "Python not found in standard locations"    
+C:\Users\User\AppData\Local\Microsoft\WindowsApps\python.exe
+
+sshuser@DESKTOP-HU6CFCK C:\Users\User>C:\Users\User\AppData\Local\Microsoft\WindowsApps\python.exe subAlljob.py --directory ./96    
+The system cannot execute the specified program.
+
+sshuser@DESKTOP-HU6CFCK C:\Users\User>powershell -Command "Invoke-WebRequest -Uri https://www.python.org/ftp/python/3.11.5/python-3.11.5-amd64.exe -OutFile python-installer.exe" && echo "دانلود پایتون انجام شد. در حال نصب..." && python-installer.exe /quiet InstallAllUsers=1 PrependPath=1 Include_test=0 && echo "پایتون با موفقیت نصب شد. لطفا ترمینال را مجدداً باز کنید."
+"دانلود پایتون انجام شد. در حال نصب..." 
+"پایتون با موفقیت نصب شد. لطفا ترمینال را مجدداً باز کنید."
+
+sshuser@DESKTOP-HU6CFCK C:\Users\User>py subAlljob.py --directory ./96
+Traceback (most recent call last):
+  File "C:\Users\User\subAlljob.py", line 1, in <module>
+    import whisper
+ModuleNotFoundError: No module named 'whisper'
+
+sshuser@DESKTOP-HU6CFCK C:\Users\User>^[[Opip install whisper openai-whisper && echo "ماژول whisper با موفقیت نصب شد" && py subAlljob.py --directory ./96    
+'pip' is not recognized as an internal or external command,
+operable program or batch file.
+
+sshuser@DESKTOP-HU6CFCK C:\Users\User>pip install whisper openai-whisper && echo "ماژول whisper با موفقیت نصب شد" && py subAlljob.py --directory ./96
+'pip' is not recognized as an internal or external command,
+operable program or batch file.
+
+sshuser@DESKTOP-HU6CFCK C:\Users\User>py -m pip install whisper openai-whisper && echo "ماژول whisper با موفقیت نصب شد" && py subAlljob.py --directory ./96
+Collecting whisper
+  Downloading whisper-1.1.10.tar.gz (42 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 42.8/42.8 kB 525.7 kB/s eta 0:00:00
+  Installing build dependencies ... done
+  Getting requirements to build wheel ... done
+  Preparing metadata (pyproject.toml) ... done
+Collecting openai-whisper
+  Downloading openai-whisper-20240930.tar.gz (800 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 800.5/800.5 kB 4.2 MB/s eta 0:00:00
+  Installing build dependencies ... done
+  Getting requirements to build wheel ... done
+  Preparing metadata (pyproject.toml) ... done
+Collecting six (from whisper)
+  Obtaining dependency information for six from https://files.pythonhosted.org/packages/b7/ce/149a00dd41f10bc29e5921b496af8b574d8413afcd5e30dfa0ed46c2cc5e/six-1.17.0-py2.py3-none-any.whl.metadata
+  Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+Collecting numba (from openai-whisper)
+  Obtaining dependency information for numba from https://files.pythonhosted.org/packages/0f/a4/2b309a6a9f6d4d8cfba583401c7c2f9ff887adb5d54d8e2e130274c0973f/numba-0.61.2-cp311-cp311-win_amd64.whl.metadata
+  Downloading numba-0.61.2-cp311-cp311-win_amd64.whl.metadata (2.9 kB)
+Collecting numpy (from openai-whisper)
+  Obtaining dependency information for numpy from https://files.pythonhosted.org/packages/8b/72/10c1d2d82101c468a28adc35de6c77b308f288cfd0b88e1070f15b98e00c/numpy-2.2.4-cp311-cp311-win_amd64.whl.metadata
+  Downloading numpy-2.2.4-cp311-cp311-win_amd64.whl.metadata (60 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 60.8/60.8 kB 3.2 MB/s eta 0:00:00
+Collecting torch (from openai-whisper)
+  Obtaining dependency information for torch from https://files.pythonhosted.org/packages/11/c5/2370d96b31eb1841c3a0883a492c15278a6718ccad61bb6a649c80d1d9eb/torch-2.6.0-cp311-cp311-win_amd64.whl.metadata
+  Downloading torch-2.6.0-cp311-cp311-win_amd64.whl.metadata (28 kB)
+Collecting tqdm (from openai-whisper)
+  Obtaining dependency information for tqdm from https://files.pythonhosted.org/packages/d0/30/dc54f88dd4a2b5dc8a0279bdd7270e735851848b762aeb1c1184ed1f6b14/tqdm-4.67.1-py3-none-any.whl.metadata
+  Downloading tqdm-4.67.1-py3-none-any.whl.metadata (57 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 57.7/57.7 kB 3.0 MB/s eta 0:00:00
+Collecting more-itertools (from openai-whisper)
+  Obtaining dependency information for more-itertools from https://files.pythonhosted.org/packages/23/62/0fe302c6d1be1c777cab0616e6302478251dfbf9055ad426f5d0def75c89/more_itertools-10.6.0-py3-none-any.whl.metadata
+  Downloading more_itertools-10.6.0-py3-none-any.whl.metadata (37 kB)
+Collecting tiktoken (from openai-whisper)
+  Obtaining dependency information for tiktoken from https://files.pythonhosted.org/packages/6f/07/c67ad1724b8e14e2b4c8cca04b15da158733ac60136879131db05dda7c30/tiktoken-0.9.0-cp311-cp311-win_amd64.whl.metadata
+  Downloading tiktoken-0.9.0-cp311-cp311-win_amd64.whl.metadata (6.8 kB)
+Collecting llvmlite<0.45,>=0.44.0dev0 (from numba->openai-whisper)
+  Obtaining dependency information for llvmlite<0.45,>=0.44.0dev0 from https://files.pythonhosted.org/packages/5f/c6/258801143975a6d09a373f2641237992496e15567b907a4d401839d671b8/llvmlite-0.44.0-cp311-cp311-win_amd64.whl.metadata
+  Downloading llvmlite-0.44.0-cp311-cp311-win_amd64.whl.metadata (5.0 kB)
+Collecting regex>=2022.1.18 (from tiktoken->openai-whisper)
+  Obtaining dependency information for regex>=2022.1.18 from https://files.pythonhosted.org/packages/80/32/763a6cc01d21fb3819227a1cc3f60fd251c13c37c27a73b8ff4315433a8e/regex-2024.11.6-cp311-cp311-win_amd64.whl.metadata
+  Downloading regex-2024.11.6-cp311-cp311-win_amd64.whl.metadata (41 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 41.5/41.5 kB ? eta 0:00:00
+Collecting requests>=2.26.0 (from tiktoken->openai-whisper)
+  Obtaining dependency information for requests>=2.26.0 from https://files.pythonhosted.org/packages/f9/9b/335f9764261e915ed497fcdeb11df5dfd6f7bf257d4a6a2a686d80da4d54/requests-2.32.3-py3-none-any.whl.metadata
+  Downloading requests-2.32.3-py3-none-any.whl.metadata (4.6 kB)
+Collecting filelock (from torch->openai-whisper)
+  Obtaining dependency information for filelock from https://files.pythonhosted.org/packages/4d/36/2a115987e2d8c300a974597416d9de88f2444426de9571f4b59b2cca3acc/filelock-3.18.0-py3-none-any.whl.metadata
+  Downloading filelock-3.18.0-py3-none-any.whl.metadata (2.9 kB)
+Collecting typing-extensions>=4.10.0 (from torch->openai-whisper)
+  Obtaining dependency information for typing-extensions>=4.10.0 from https://files.pythonhosted.org/packages/8b/54/b1ae86c0973cc6f0210b53d508ca3641fb6d0c56823f288d108bc7ab3cc8/typing_extensions-4.13.2-py3-none-any.whl.metadata
+  Downloading typing_extensions-4.13.2-py3-none-any.whl.metadata (3.0 kB)
+Collecting networkx (from torch->openai-whisper)
+  Obtaining dependency information for networkx from https://files.pythonhosted.org/packages/b9/54/dd730b32ea14ea797530a4479b2ed46a6fb250f682a9cfb997e968bf0261/networkx-3.4.2-py3-none-any.whl.metadata
+  Downloading networkx-3.4.2-py3-none-any.whl.metadata (6.3 kB)
+Collecting jinja2 (from torch->openai-whisper)
+  Obtaining dependency information for jinja2 from https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl.metadata
+  Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+Collecting fsspec (from torch->openai-whisper)
+  Obtaining dependency information for fsspec from https://files.pythonhosted.org/packages/44/4b/e0cfc1a6f17e990f3e64b7d941ddc4acdc7b19d6edd51abf495f32b1a9e4/fsspec-2025.3.2-py3-none-any.whl.metadata
+  Downloading fsspec-2025.3.2-py3-none-any.whl.metadata (11 kB)
+Collecting sympy==1.13.1 (from torch->openai-whisper)
+  Obtaining dependency information for sympy==1.13.1 from https://files.pythonhosted.org/packages/b2/fe/81695a1aa331a842b582453b605175f419fe8540355886031328089d840a/sympy-1.13.1-py3-none-any.whl.metadata
+  Downloading sympy-1.13.1-py3-none-any.whl.metadata (12 kB)
+Collecting mpmath<1.4,>=1.1.0 (from sympy==1.13.1->torch->openai-whisper)
+  Obtaining dependency information for mpmath<1.4,>=1.1.0 from https://files.pythonhosted.org/packages/43/e3/7d92a15f894aa0c9c4b49b8ee9ac9850d6e63b03c9c32c0367a13ae62209/mpmath-1.3.0-py3-none-any.whl.metadata
+  Downloading mpmath-1.3.0-py3-none-any.whl.metadata (8.6 kB)
+Collecting colorama (from tqdm->openai-whisper)
+  Obtaining dependency information for colorama from https://files.pythonhosted.org/packages/d1/d6/3965ed04c63042e047cb6a3e6ed1a63a35087b6a609aa3a15ed8ac56c221/colorama-0.4.6-py2.py3-none-any.whl.metadata
+  Downloading colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)
+Collecting charset-normalizer<4,>=2 (from requests>=2.26.0->tiktoken->openai-whisper)
+  Obtaining dependency information for charset-normalizer<4,>=2 from https://files.pythonhosted.org/packages/1e/ab/45b180e175de4402dcf7547e4fb617283bae54ce35c27930a6f35b6bef15/charset_normalizer-3.4.1-cp311-cp311-win_amd64.whl.metadata
+  Downloading charset_normalizer-3.4.1-cp311-cp311-win_amd64.whl.metadata (36 kB)
+Collecting idna<4,>=2.5 (from requests>=2.26.0->tiktoken->openai-whisper)
+  Obtaining dependency information for idna<4,>=2.5 from https://files.pythonhosted.org/packages/76/c6/c88e154df9c4e1a2a66ccf0005a88dfb2650c1dffb6f5ce603dfbd452ce3/idna-3.10-py3-none-any.whl.metadata
+  Downloading idna-3.10-py3-none-any.whl.metadata (10 kB)
+Collecting urllib3<3,>=1.21.1 (from requests>=2.26.0->tiktoken->openai-whisper)
+  Obtaining dependency information for urllib3<3,>=1.21.1 from https://files.pythonhosted.org/packages/6b/11/cc635220681e93a0183390e26485430ca2c7b5f9d33b15c74c2861cb8091/urllib3-2.4.0-py3-none-any.whl.metadata
+  Downloading urllib3-2.4.0-py3-none-any.whl.metadata (6.5 kB)
+Collecting certifi>=2017.4.17 (from requests>=2.26.0->tiktoken->openai-whisper)
+  Obtaining dependency information for certifi>=2017.4.17 from https://files.pythonhosted.org/packages/38/fc/bce832fd4fd99766c04d1ee0eead6b0ec6486fb100ae5e74c1d91292b982/certifi-2025.1.31-py3-none-any.whl.metadata
+  Downloading certifi-2025.1.31-py3-none-any.whl.metadata (2.5 kB)
+Collecting MarkupSafe>=2.0 (from jinja2->torch->openai-whisper)
+  Obtaining dependency information for MarkupSafe>=2.0 from https://files.pythonhosted.org/packages/da/b8/3a3bd761922d416f3dc5d00bfbed11f66b1ab89a0c2b6e887240a30b0f6b/MarkupSafe-3.0.2-cp311-cp311-win_amd64.whl.metadata
+  Downloading MarkupSafe-3.0.2-cp311-cp311-win_amd64.whl.metadata (4.1 kB)
+Downloading more_itertools-10.6.0-py3-none-any.whl (63 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 63.0/63.0 kB 3.3 MB/s eta 0:00:00
+Downloading numba-0.61.2-cp311-cp311-win_amd64.whl (2.8 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.8/2.8 MB 13.9 MB/s eta 0:00:00
+Downloading numpy-2.2.4-cp311-cp311-win_amd64.whl (12.9 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.9/12.9 MB 18.2 MB/s eta 0:00:00
+Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+Downloading tiktoken-0.9.0-cp311-cp311-win_amd64.whl (893 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 893.9/893.9 kB 27.6 MB/s eta 0:00:00
+Downloading torch-2.6.0-cp311-cp311-win_amd64.whl (204.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 204.2/204.2 MB 12.6 MB/s eta 0:00:00
+Downloading sympy-1.13.1-py3-none-any.whl (6.2 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.2/6.2 MB 20.8 MB/s eta 0:00:00
+Downloading tqdm-4.67.1-py3-none-any.whl (78 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 78.5/78.5 kB 4.3 MB/s eta 0:00:00
+Downloading llvmlite-0.44.0-cp311-cp311-win_amd64.whl (30.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 30.3/30.3 MB 16.8 MB/s eta 0:00:00
+Downloading regex-2024.11.6-cp311-cp311-win_amd64.whl (274 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 274.1/274.1 kB 17.6 MB/s eta 0:00:00
+Downloading requests-2.32.3-py3-none-any.whl (64 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 64.9/64.9 kB ? eta 0:00:00
+Downloading typing_extensions-4.13.2-py3-none-any.whl (45 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.8/45.8 kB 2.2 MB/s eta 0:00:00
+Downloading colorama-0.4.6-py2.py3-none-any.whl (25 kB)
+Downloading filelock-3.18.0-py3-none-any.whl (16 kB)
+Downloading fsspec-2025.3.2-py3-none-any.whl (194 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 194.4/194.4 kB 11.5 MB/s eta 0:00:00
+Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 134.9/134.9 kB ? eta 0:00:00
+Downloading networkx-3.4.2-py3-none-any.whl (1.7 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.7/1.7 MB 22.0 MB/s eta 0:00:00
+Downloading certifi-2025.1.31-py3-none-any.whl (166 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 166.4/166.4 kB ? eta 0:00:00
+Downloading charset_normalizer-3.4.1-cp311-cp311-win_amd64.whl (102 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 102.4/102.4 kB ? eta 0:00:00
+Downloading idna-3.10-py3-none-any.whl (70 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 70.4/70.4 kB ? eta 0:00:00
+Downloading MarkupSafe-3.0.2-cp311-cp311-win_amd64.whl (15 kB)
+Downloading mpmath-1.3.0-py3-none-any.whl (536 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 536.2/536.2 kB 32.9 MB/s eta 0:00:00
+Downloading urllib3-2.4.0-py3-none-any.whl (128 kB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 128.7/128.7 kB ? eta 0:00:00
+Building wheels for collected packages: whisper, openai-whisper
+  Building wheel for whisper (pyproject.toml) ... done
+  Created wheel for whisper: filename=whisper-1.1.10-py3-none-any.whl size=41475 sha256=40047a929ab3066dd74770d97f6f399e8fb27ca056d0a12fbb69030122042f50
+  Stored in directory: c:\users\sshuser\appdata\local\pip\cache\wheels\21\65\ee\4e6672aabfa486d3341a39a04f8f87c77e5156149299b5a7d0
+  Building wheel for openai-whisper (pyproject.toml) ... done
+  Created wheel for openai-whisper: filename=openai_whisper-20240930-py3-none-any.whl size=803439 sha256=9773402b813ea5e0447fc813042d1b700a9d237b474777a7b32263e39611f678
+  Stored in directory: c:\users\sshuser\appdata\local\pip\cache\wheels\2f\f2\ce\6eb23db4091d026238ce76703bd66da60b969d70bcc81d5d3a
+Successfully built whisper openai-whisper
+Installing collected packages: mpmath, urllib3, typing-extensions, sympy, six, regex, numpy, networkx, more-itertools, MarkupSafe, llvmlite, idna, fsspec, filelock, colorama, charset-normalizer, certifi, whisper, tqdm, requests, numba, jinja2, torch, tiktoken, openai-whisper
+  WARNING: The script isympy.exe is installed in 'C:\Program Files\Python311\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+  WARNING: The scripts f2py.exe and numpy-config.exe are installed in 'C:\Program Files\Python311\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+  WARNING: The script normalizer.exe is installed in 'C:\Program Files\Python311\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+  WARNING: The script tqdm.exe is installed in 'C:\Program Files\Python311\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+  WARNING: The scripts torchfrtrace.exe and torchrun.exe are installed in 'C:\Program Files\Python311\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+  WARNING: The script whisper.exe is installed in 'C:\Program Files\Python311\Scripts' which is not on PATH.
+  Consider adding this directory to PATH or, if you prefer to suppress this warning, use --no-warn-script-location.
+Successfully installed MarkupSafe-3.0.2 certifi-2025.1.31 charset-normalizer-3.4.1 colorama-0.4.6 filelock-3.18.0 fsspec-2025.3.2 idna-3.10 jinja2-3.1.6 llvmlite-0.44.0 more-itertools-10.6.0 mpmath-1.3.0 networkx-3.4.2 numba-0.61.2 numpy-2.2.4 openai-whisper-20240930 regex-2024.11.6 requests-2.32.3 six-1.17.0 sympy-1.13.1 tiktoken-0.9.0 torch-2.6.0 tqdm-4.67.1 typing-extensions-4.13.2 urllib3-2.4.0 whisper-1.1.10
+
+[notice] A new release of pip is available: 23.2.1 -> 25.0.1
+[notice] To update, run: C:\Program Files\Python311\python.exe -m pip install --upgrade pip
+"ماژول whisper با موفقیت نصب شد" 
+Traceback (most recent call last):
+  File "C:\Users\User\subAlljob.py", line 2, in <module>
+    from pydub import AudioSegment
+ModuleNotFoundError: No module named 'pydub'
+
+sshuser@DESKTOP-HU6CFCK C:\Users\User>^[[Opy -m pip install pydub    
+'py' is not recognized as an internal or external command,
+operable program or batch file.
+
+sshuser@DESKTOP-HU6CFCK C:\Users\User>py -m pip install pydub
+Collecting pydub
+  Obtaining dependency information for pydub from https://files.pythonhosted.org/packages/a6/53/d78dc063216e62fc55f6b2eebb447f6a4b0a59f55c8406376f76bf959b08/pydub-0.25.1-py2.py3-none-any.whl.metadata
+  Downloading pydub-0.25.1-py2.py3-none-any.whl.metadata (1.4 kB)
+Downloading pydub-0.25.1-py2.py3-none-any.whl (32 kB)
+Installing collected packages: pydub
+Successfully installed pydub-0.25.1
+
+[notice] A new release of pip is available: 23.2.1 -> 25.0.1
+[notice] To update, run: C:\Program Files\Python311\python.exe -m pip install --upgrade pip
+
+sshuser@DESKTOP-HU6CFCK C:\Users\User>py subAlljob.py --directory ./96
+در حال دانلود مدل large...
+مدل دانلود شد.
+تعداد 38 فایل برای پردازش پیدا شد.
+
+پردازش فایل 1/38: ./96\01 -خواطر - حنينة.mp4
+C:\Program Files\Python311\Lib\site-packages\whisper\transcribe.py:126: UserWarning: FP16 is not supported on CPU; using FP32 instead
+  warnings.warn("FP16 is not supported on CPU; using FP32 instead")
+
