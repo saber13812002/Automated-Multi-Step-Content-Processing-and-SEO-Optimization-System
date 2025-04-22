@@ -36,7 +36,8 @@ def process_directory(directory_path='.', model_name='large', language='ar'):
     print('مدل دانلود شد.')
     
     # پیدا کردن تمام فایل‌های صوتی و ویدیویی در مسیر (mp4, mp3, m4a, wav, aac, flac, ogg, mkv, webm, avi)
-    extensions = ['*.mp4', '*.mp3', '*.m4a', '*.wav', '*.aac', '*.flac', '*.ogg', '*.mkv', '*.webm', '*.avi']
+
+    extensions = ['*.mp4', '*.mp3', '*.m4a', '*.wav', '*.aac', '*.flac', '*.ogg', '*.mkv', '*.webm', '*.avi','*.mov','*.mpg']
     all_files = []
     for ext in extensions:
         all_files.extend(glob.glob(os.path.join(directory_path, f'**/{ext}'), recursive=True))
