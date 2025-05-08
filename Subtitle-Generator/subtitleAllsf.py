@@ -1,3 +1,4 @@
+import subprocess
 import whisper
 import datetime
 import sys
@@ -7,15 +8,24 @@ import glob
 import os
 import soundfile as sf
 
+def extract_audio(input_file, output_file):
+    command = ['ffmpeg', '-i', input_file, '-q:a', '0', '-map', 'a', output_file]
+    subprocess.run(command, check=True)
+
 def format_timestamp(seconds):
     return str(datetime.timedelta(seconds=seconds)).replace('.', ',')[:11]
 
 def process_video(input_file, model_name='large', language='ar'):
     try:
-        # Load audio data
-        audio_data, sample_rate = sf.read(input_file)
+        # Load the Whisper model
+        model = whisper.load_model(model_name)
+        
+        # Extract audio from video
+        audio_file = Path(input_file).with_suffix('.wav')
+        extract_audio(input_file, audio_file)
+        
         # Process with Whisper
-        result = model.transcribe(input_file, language=language)
+        result = model.transcribe(str(audio_file), language=language)
         output_file = Path(input_file).stem + '.srt'
        
         with open(output_file, 'w', encoding='utf-8') as srt_file:
@@ -41,7 +51,7 @@ def process_directory(directory_path='.', model_name='large', language='ar'):
     model = whisper.load_model(model_name)
     print('مدل دانلود شد.')
    
-    extensions = ['*.mp4', '*.mp3', '*.m4a', '*.wav', '*.aac', '*.flac', '*.ogg', '*.mkv', '*.webm', '*.avi']
+    extensions = ['*.mp4','*.m4v', '*.mp3', '*.m4a', '*.wav', '*.aac', '*.flac', '*.ogg', '*.mkv', '*.webm', '*.avi']
     all_files = []
     for ext in extensions:
         all_files.extend(glob.glob(os.path.join(directory_path, f'**/{ext}'), recursive=True))

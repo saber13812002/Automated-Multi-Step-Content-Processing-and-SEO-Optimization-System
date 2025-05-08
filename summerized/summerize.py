@@ -1,6 +1,14 @@
+import sys
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 
-def summarize(text, model_name):
+def summarize(text: str, model_name: str = "m3hrdadfi/bart-base-parsinlu-summary") -> str:
+    """
+    خلاصه‌سازی یک متن با استفاده از مدل مشخص‌شده از Hugging Face
+
+    :param text: متن ورودی برای خلاصه‌سازی
+    :param model_name: نام مدل در Hugging Face
+    :return: خلاصه متن
+    """
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 
@@ -10,18 +18,33 @@ def summarize(text, model_name):
     return summary[0]['summary_text']
 
 
-# # مثال انگلیسی
-# english_text = """
-# Facebook is an American online social media and social networking service owned by Meta Platforms. 
-# Founded in 2004 by Mark Zuckerberg with fellow Harvard College students, its name comes from the face book directories often given to American university students. 
-# Membership was initially limited to Harvard students, gradually expanding to other North American universities and, since 2006, to anyone over 13 years old.
-# """
-# print("🔹 English Summary:\n", summarize(english_text, "facebook/bart-large-cnn"))
+def main():
+    if len(sys.argv) < 3:
+        print("Usage: python summarize.py <path_to_file> <language>")
+        print("Language options: fa (Persian) | en (English)")
+        sys.exit(1)
 
-# # مثال فارسی
-# persian_text = """
-# قانون اساسی جمهوری اسلامی ایران در سال ۱۳۵۸ به تصویب رسید و در سال ۱۳۶۸ مورد بازنگری قرار گرفت. 
-# این قانون اصول و مبانی حکومت را مشخص می‌کند و ساختار قوا، حقوق ملت و وظایف دولت را تعیین می‌کند. 
-# با گذشت بیش از چهار دهه از تصویب آن، نیاز به تفسیر و بازنگری در برخی اصول آن احساس می‌شود.
-# """
-# print("\n🔹 خلاصه فارسی:\n", summarize(persian_text, "m3hrdadfi/bart-base-parsinlu-summary"))
+    path_to_file = sys.argv[1]
+    lang = sys.argv[2].lower()
+
+    try:
+        with open(path_to_file, "r", encoding="utf-8") as file:
+            text = file.read()
+    except FileNotFoundError:
+        print(f"Error: File not found at path '{path_to_file}'")
+        sys.exit(1)
+
+    if lang == "fa":
+        model_name = "m3hrdadfi/bart-base-parsinlu-summary"
+    elif lang == "en":
+        model_name = "facebook/bart-large-cnn"
+    else:
+        print("Invalid language. Use 'fa' for Persian or 'en' for English.")
+        sys.exit(1)
+
+    print("🔹 Original Text:\n", text)
+    print("\n🔹 Summary:\n", summarize(text, model_name))
+
+
+if __name__ == "__main__":
+    main()
