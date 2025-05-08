@@ -35,7 +35,7 @@ def main():
         sys.exit(1)
 
     try:
-        print("🔹 Original Text:\n", text)
+        print("🔹 Original Text:\n", text[:1000] + ('...' if len(text) > 1000 else ''))
         print("\n🔹 Summary:\n", summarize(text, model_name))
     except Exception as e:
         print(f"Error during summarization: {e}")

@@ -2,6 +2,23 @@
 
 A simple Python script to summarize Persian and English text files using Hugging Face transformer models.
 
+
+# Summarization Tool for Persian & English Texts
+
+This tool allows you to summarize text files using pre-trained transformer models for English and Persian.
+
+## 🔧 Setup
+
+1. Clone the repo and go to the project folder.
+2. Make sure you have Python 3 installed.
+3. Run the setup script:
+
+```bash
+chmod +x setup_and_run.sh
+./setup_and_run.sh <input_file.txt> <language>
+
+
+
 ## ✨ Features
 
 - Summarizes long texts into concise summaries
@@ -48,3 +65,8 @@ sentencepiece
 
 
 MIT License
+
+
+
+
+
