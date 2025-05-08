@@ -1,22 +1,14 @@
 import sys
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 
-def summarize(text: str, model_name: str = "m3hrdadfi/bart-base-parsinlu-summary") -> str:
-    """
-    خلاصه‌سازی یک متن با استفاده از مدل مشخص‌شده از Hugging Face
-
-    :param text: متن ورودی برای خلاصه‌سازی
-    :param model_name: نام مدل در Hugging Face
-    :return: خلاصه متن
-    """
+def summarize(text: str, model_name: str) -> str:
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
-
+    
     summarizer = pipeline("summarization", model=model, tokenizer=tokenizer)
     summary = summarizer(text, max_length=200, min_length=30, do_sample=False)
-
+    
     return summary[0]['summary_text']
-
 
 def main():
     if len(sys.argv) < 3:
@@ -42,9 +34,11 @@ def main():
         print("Invalid language. Use 'fa' for Persian or 'en' for English.")
         sys.exit(1)
 
-    print("🔹 Original Text:\n", text)
-    print("\n🔹 Summary:\n", summarize(text, model_name))
-
+    try:
+        print("🔹 Original Text:\n", text)
+        print("\n🔹 Summary:\n", summarize(text, model_name))
+    except Exception as e:
+        print(f"Error during summarization: {e}")
 
 if __name__ == "__main__":
     main()
