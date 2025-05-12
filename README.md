@@ -1,6 +1,12 @@
 # Automated-Multi-Step-Content-Processing-and-SEO-Optimization-System
 
 
+root@aiu24:/mnt/data/saberprojects/iranseda-crawler-golang-# cd /
+root@aiu24:/# cd /root/automated-multi-step-content-processing-and-seo-optimization-sy                                                               stem/
+root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system# cd Subtitle-Generator/                                             root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system/Subtitle-Generator# source myenv/bin/activate                       (myenv) root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system/Subtitle-Generator# python3 subAlljob.py --language fa --directory /mnt/networkshare/downloads/
+
+
+
 This project is an Automated Multi-Step Content Processing and SEO Optimization System based on AI tools. 
 
 It is designed to automate various content processing and optimization tasks, including subtitle generation, WordPress category crawling and processing, and media download.
