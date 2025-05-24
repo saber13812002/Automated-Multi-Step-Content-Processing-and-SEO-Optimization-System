@@ -1,2 +1,5 @@
 media/*
 /tools/bcrypt/node_modules
+/Subtitle-Generator/myenv/*
+/summerized/venv/*
+*.mpg
