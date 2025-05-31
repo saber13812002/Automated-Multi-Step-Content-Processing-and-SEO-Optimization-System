@@ -10,7 +10,7 @@ import torch
 from concurrent.futures import ThreadPoolExecutor
 
 # مدت زمان انقضا قفل (2 روز)
-LOCK_EXPIRATION_TIME = datetime.timedelta(days=2)
+LOCK_EXPIRATION_TIME = datetime.timedelta(hours=1)
 
 def format_timestamp(seconds):
     return str(datetime.timedelta(seconds=seconds)).replace('.', ',')[:11]
