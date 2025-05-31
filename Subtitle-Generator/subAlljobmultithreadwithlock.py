@@ -1,5 +1,4 @@
 import whisper
-from pydub import AudioSegment
 import datetime
 import sys
 import argparse
@@ -9,6 +8,9 @@ import os
 import threading
 import torch
 from concurrent.futures import ThreadPoolExecutor
+
+# مدت زمان انقضا قفل (2 روز)
+LOCK_EXPIRATION_TIME = datetime.timedelta(days=2)
 
 def format_timestamp(seconds):
     return str(datetime.timedelta(seconds=seconds)).replace('.', ',')[:11]
@@ -22,10 +24,20 @@ def get_available_gpu():
                 return i
         return 0
 
+def is_lock_expired(lock_file):
+    """بررسی اینکه آیا قفل منقضی شده است یا خیر"""
+    if not os.path.exists(lock_file):
+        return False
+
+    last_modified_time = datetime.datetime.fromtimestamp(os.path.getmtime(lock_file))
+    return datetime.datetime.now() - last_modified_time > LOCK_EXPIRATION_TIME
+
 def process_single_file(video_file, model, language):
     """پردازش یک فایل با در نظر گرفتن قفل"""
     lock_file = video_file + '.lock'
-    if os.path.exists(lock_file):
+    
+    # اگر فایل قفل شده و منقضی نشده است، از پردازش آن خودداری کن
+    if os.path.exists(lock_file) and not is_lock_expired(lock_file):
         print(f'فایل {video_file} در حال پردازش توسط یک ترد دیگر است.')
         return
 
