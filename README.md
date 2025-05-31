@@ -3,8 +3,13 @@
 
 root@aiu24:/mnt/data/saberprojects/iranseda-crawler-golang-# cd /
 root@aiu24:/# cd /root/automated-multi-step-content-processing-and-seo-optimization-sy                                                               stem/
-root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system# cd Subtitle-Generator/                                             root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system/Subtitle-Generator# source myenv/bin/activate                       (myenv) root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system/Subtitle-Generator# python3 subAlljob.py --language fa --directory /mnt/networkshare/downloads/
+root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system# cd Subtitle-Generator/                                             
+root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system/Subtitle-Generator# source myenv/bin/activate                       
 
+
+(myenv) root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system/Subtitle-Generator# python3 subAlljob.py --language fa --directory /mnt/networkshare/downloads/
+
+(myenv) root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system/Subtitle-Generator# python3 subAlljob.py --language fa --directory /mnt/data/saberprojects/iranseda-crawler-golang-/downloads
 
 
 This project is an Automated Multi-Step Content Processing and SEO Optimization System based on AI tools. 
