@@ -1,4 +1,8 @@
 import whisper
+<<<<<<< HEAD
+=======
+from pydub import AudioSegment
+>>>>>>> a8f31e358dc1022324655f8168ca06098cc08a07
 import datetime
 import sys
 import argparse
@@ -9,9 +13,12 @@ import threading
 import torch
 from concurrent.futures import ThreadPoolExecutor
 
+<<<<<<< HEAD
 # مدت زمان انقضا قفل (2 روز)
 LOCK_EXPIRATION_TIME = datetime.timedelta(days=2)
 
+=======
+>>>>>>> a8f31e358dc1022324655f8168ca06098cc08a07
 def format_timestamp(seconds):
     return str(datetime.timedelta(seconds=seconds)).replace('.', ',')[:11]
 
