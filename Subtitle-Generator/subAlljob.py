@@ -21,8 +21,9 @@ def process_file_with_gpu(args: Tuple[str, str, str, int]) -> bool:
     """پردازش یک فایل با GPU مشخص شده"""
     video_file, model_name, language, gpu_id = args
     try:
-        # تنظیم GPU برای این process
-        torch.cuda.set_device(gpu_id)
+        # تنظیم GPU فقط اگر GPU معتبر است
+        if gpu_id != -1:
+            torch.cuda.set_device(gpu_id)
         model = whisper.load_model(model_name)
         
         result = model.transcribe(video_file, language=language)
@@ -50,8 +51,37 @@ def process_directory(directory_path='.', model_name='large', language='ar'):
     else:
         print(f"تعداد {len(available_gpus)} GPU یافت شد: {available_gpus}")
 
-    # پیدا کردن فایل‌های مدیا
-    extensions = ['*.mp4', '*.mp3', '*.m4a', '*.wav', '*.aac', '*.flac', '*.ogg', '*.mkv', '*.webm', '*.avi', '*.mov', '*.mpg']
+    # پیدا کردن فایل‌های مدیا - شامل فرمت‌های سازمانی و ماهواره‌ای
+    extensions = [
+        # فرمت‌های معمولی
+        '*.mp4', '*.mp3', '*.m4a', '*.wav', '*.aac', '*.flac', '*.ogg', '*.mkv', '*.webm', '*.avi', '*.mov', '*.mpg',
+        # فرمت‌های ماهواره‌ای و پخش
+        '*.ts', '*.mts', '*.m2ts', '*.trp', '*.tp',
+        # فرمت‌های حرفه‌ای پخش
+        '*.mxf', '*.gxf',
+        # فرمت‌های DVD و ضبط
+        '*.vob', '*.ifo', '*.vro', '*.vdr',
+        # فرمت‌های موبایل و ماهواره
+        '*.3gp', '*.3g2',
+        # فرمت‌های مایکروسافت
+        '*.asf', '*.wmv', '*.wma',
+        # فرمت‌های RealMedia
+        '*.rm', '*.rmvb', '*.ra', '*.ram',
+        # فرمت‌های ضبط تلویزیون
+        '*.dvr-ms', '*.wtv', '*.rec', '*.pvr',
+        # فرمت‌های کامکورد
+        '*.mod', '*.tod',
+        # فرمت‌های MPEG اضافی
+        '*.m2v', '*.m1v', '*.mp2', '*.mpa',
+        # فرمت‌های صوتی حرفه‌ای
+        '*.ac3', '*.eac3', '*.dts', '*.dtshd',
+        '*.thd', '*.mlp', '*.aiff', '*.au', '*.snd',
+        # فرمت‌های Audible و کتاب صوتی
+        '*.aa', '*.aax', '*.m4b', '*.m4p',
+        # فرمت‌های صوتی فشرده‌سازی بالا
+        '*.opus', '*.spx', '*.tta', '*.tak',
+        '*.wv', '*.ape', '*.shn'
+    ]
     all_files = []
     for ext in extensions:
         all_files.extend(glob.glob(os.path.join(directory_path, f'**/{ext}'), recursive=True))
