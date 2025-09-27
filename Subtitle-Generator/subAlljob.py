@@ -36,20 +36,23 @@ def process_file_with_gpu(args: Tuple[str, str, str, int]) -> bool:
                 text = segment['text'].strip()
                 srt_file.write(f"{j}\n{start_time} --> {end_time}\n{text}\n\n")
         
-        print(f'\nزیرنویس در فایل {output_file} ذخیره شد (GPU {gpu_id})')
+        print(f'✅ زیرنویس در فایل {output_file} ذخیره شد (GPU {gpu_id})')
         return True
     except Exception as e:
-        print(f'خطا در پردازش {video_file} روی GPU {gpu_id}: {str(e)}')
+        print(f'❌ خطا در پردازش {video_file} روی GPU {gpu_id}: {str(e)}')
         return False
 
 def process_directory(directory_path='.', model_name='large', language='ar'):
+    print("🎬 خوش آمدید! سیستم تولید زیرنویس Whisper شروع به کار کرد...")
+    print("=" * 60)
+    
     # بررسی GPU های موجود
     available_gpus = get_available_gpus()
     if not available_gpus:
-        print("هیچ GPU ای یافت نشد. از CPU استفاده می‌شود.")
+        print("⚠️  هیچ GPU ای یافت نشد. از CPU استفاده می‌شود.")
         available_gpus = [-1]  # CPU
     else:
-        print(f"تعداد {len(available_gpus)} GPU یافت شد: {available_gpus}")
+        print(f"🎮 تعداد {len(available_gpus)} کارت گرافیک یافت شد: {available_gpus}")
 
     # پیدا کردن فایل‌های مدیا - شامل فرمت‌های سازمانی و ماهواره‌ای
     extensions = [
@@ -90,10 +93,11 @@ def process_directory(directory_path='.', model_name='large', language='ar'):
     files_to_process = [f for f in all_files if not Path(f).with_suffix('.srt').exists()]
     
     if not files_to_process:
-        print("هیچ فایل مدیای بدون زیرنویس پیدا نشد.")
+        print("✅ هیچ فایل مدیای بدون زیرنویس پیدا نشد.")
         return
 
-    print(f"تعداد {len(files_to_process)} فایل برای پردازش پیدا شد.")
+    print(f"📁 تعداد {len(files_to_process)} فایل برای پردازش پیدا شد.")
+    print("=" * 60)
 
     # آماده‌سازی کارها برای پردازش موازی
     tasks = []
@@ -101,13 +105,23 @@ def process_directory(directory_path='.', model_name='large', language='ar'):
         gpu_id = available_gpus[i % len(available_gpus)]
         tasks.append((video_file, model_name, language, gpu_id))
 
+    print(f"🚀 شروع پردازش {len(files_to_process)} فایل...")
+    print("=" * 60)
+
     # پردازش موازی فایل‌ها
     with concurrent.futures.ProcessPoolExecutor(max_workers=len(available_gpus)) as executor:
         results = list(executor.map(process_file_with_gpu, tasks))
 
     # نمایش نتایج نهایی
     successful = sum(1 for r in results if r)
-    print(f"\nپردازش کامل شد. {successful} فایل از {len(files_to_process)} فایل با موفقیت پردازش شدند.")
+    failed = len(files_to_process) - successful
+    
+    print("=" * 60)
+    print(f"🎉 پردازش کامل شد!")
+    print(f"✅ موفق: {successful} فایل")
+    print(f"❌ ناموفق: {failed} فایل")
+    print(f"📊 مجموع: {len(files_to_process)} فایل")
+    print("=" * 60)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='تبدیل فایل‌های ویدیویی و صوتی به زیرنویس با استفاده از Whisper')
