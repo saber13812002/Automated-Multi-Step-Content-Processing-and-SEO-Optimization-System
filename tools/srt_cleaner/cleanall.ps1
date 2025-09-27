@@ -1,5 +1,5 @@
-$INPUT_DIR = "D:\media\96"
-$OUTPUT_DIR = "D:\media\96"
+$INPUT_DIR = "C:\Users\office000\Documents\saberprojects\mine\iranseda-crawler-golang-\downloads"
+$OUTPUT_DIR = "C:\Users\office000\Documents\saberprojects\mine\iranseda-crawler-golang-\downloads\cleaned"
 
 # ایجاد پوشه خروجی در صورت عدم وجود
 if (-Not (Test-Path -Path $OUTPUT_DIR)) {
