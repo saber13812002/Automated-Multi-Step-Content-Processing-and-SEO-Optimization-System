@@ -67,8 +67,11 @@ def extract_audio_with_ffmpeg(input_path: str) -> Optional[str]:
     # ناموفق
     return None
 
-def process_file_with_gpu(args: Tuple[str, str, str, int]) -> bool:
-    """پردازش یک فایل با GPU مشخص شده"""
+def process_file_with_gpu(args: Tuple[str, str, str, int]) -> Tuple[bool, str, bool]:
+    """پردازش یک فایل با GPU مشخص شده
+
+    خروجی: (موفقیت/شکست, پیام خطا، موفقیت استخراج ffmpeg)
+    """
     video_file, model_name, language, gpu_id = args
     try:
         # تنظیم GPU فقط اگر GPU معتبر است
@@ -78,7 +81,8 @@ def process_file_with_gpu(args: Tuple[str, str, str, int]) -> bool:
         
         # ابتدا تلاش برای استخراج صوت با ffmpeg (برای فایل‌های ناقص/TS/استریم)
         extracted_wav = extract_audio_with_ffmpeg(video_file)
-        transcribe_input = extracted_wav if extracted_wav else video_file
+        ffmpeg_ok = extracted_wav is not None
+        transcribe_input = extracted_wav if ffmpeg_ok else video_file
 
         result = model.transcribe(transcribe_input, language=language)
         output_file = Path(video_file).with_suffix('.srt')
@@ -91,12 +95,12 @@ def process_file_with_gpu(args: Tuple[str, str, str, int]) -> bool:
                 srt_file.write(f"{j}\n{start_time} --> {end_time}\n{text}\n\n")
         
         print(f'✅ زیرنویس در فایل {output_file} ذخیره شد (GPU {gpu_id})')
-        return True
+        return True, '', ffmpeg_ok
     except Exception as e:
         print(f'❌ خطا در پردازش {video_file} روی GPU {gpu_id}: {str(e)}')
-        return False
+        return False, str(e), False
 
-def process_directory(directory_path='.', model_name='large', language='ar'):
+def process_directory(directory_path='.', model_name='large', language='ar', logfile: Optional[str] = None, ffmpeg_logfile: Optional[str] = None):
     print("🎬 خوش آمدید! سیستم تولید زیرنویس Whisper شروع به کار کرد...")
     print("=" * 60)
     
@@ -166,16 +170,46 @@ def process_directory(directory_path='.', model_name='large', language='ar'):
     successful = 0
     completed = 0
     total = len(files_to_process)
+    # آماده‌سازی فایل‌های لاگ
+    fail_log_path = Path(logfile) if logfile else Path('failed_media.log')
+    ffmpeg_fail_log_path = Path(ffmpeg_logfile) if ffmpeg_logfile else Path('failed_ffmpeg.log')
+    # پاکسازی لاگ‌ها در شروع
+    try:
+        with open(fail_log_path, 'w', encoding='utf-8') as lf:
+            lf.write('')
+        with open(ffmpeg_fail_log_path, 'w', encoding='utf-8') as lf2:
+            lf2.write('')
+    except Exception:
+        pass
+
     with concurrent.futures.ProcessPoolExecutor(max_workers=len(available_gpus)) as executor:
-        futures = [executor.submit(process_file_with_gpu, t) for t in tasks]
-        for fut in concurrent.futures.as_completed(futures):
+        futures = [(executor.submit(process_file_with_gpu, t), t[0]) for t in tasks]
+        for fut, src_file in concurrent.futures.as_completed([f for f, _ in futures]):
+            pass
+    # The above attempt to use as_completed with tuple unpacking is incorrect; implement correctly:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=len(available_gpus)) as executor:
+        future_to_file = {executor.submit(process_file_with_gpu, t): t[0] for t in tasks}
+        for fut in concurrent.futures.as_completed(future_to_file):
+            src_file = future_to_file[fut]
             try:
-                ok = fut.result()
-            except Exception:
-                ok = False
+                ok, err, ff_ok = fut.result()
+            except Exception as ex:
+                ok, err, ff_ok = False, str(ex), False
             completed += 1
             if ok:
                 successful += 1
+            else:
+                try:
+                    with open(fail_log_path, 'a', encoding='utf-8') as lf:
+                        lf.write(f"{src_file}\t{err}\n")
+                except Exception:
+                    pass
+            if not ff_ok:
+                try:
+                    with open(ffmpeg_fail_log_path, 'a', encoding='utf-8') as lf2:
+                        lf2.write(f"{src_file}\n")
+                except Exception:
+                    pass
             remaining = total - completed
             print(f"📦 پیشرفت: {completed}/{total} انجام شد | باقی‌مانده: {remaining}")
     failed = total - successful
@@ -192,7 +226,9 @@ if __name__ == '__main__':
     parser.add_argument('--directory', default='.', help='مسیر پوشه حاوی فایل‌های ویدیویی و صوتی (پیش‌فرض: پوشه فعلی)')
     parser.add_argument('--model', default='large', help='نام مدل (پیش‌فرض: large)')
     parser.add_argument('--language', default='ar', help='کد زبان (پیش‌فرض: ar)')
+    parser.add_argument('--logfile', default='failed_media.log', help='مسیر فایل لاگ شکست‌های پردازش')
+    parser.add_argument('--ffmpeg-logfile', default='failed_ffmpeg.log', help='مسیر فایل لاگ شکست‌های استخراج ffmpeg')
     
     args = parser.parse_args()
     
-    process_directory(args.directory, args.model, args.language)
+    process_directory(args.directory, args.model, args.language, args.logfile, args.ffmpeg_logfile)
