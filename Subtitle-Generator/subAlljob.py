@@ -8,7 +8,9 @@ import glob
 import os
 import torch
 import concurrent.futures
-from typing import List, Tuple
+import subprocess
+import tempfile
+from typing import List, Tuple, Optional
 
 def format_timestamp(seconds):
     return str(datetime.timedelta(seconds=seconds)).replace('.', ',')[:11]
@@ -16,6 +18,54 @@ def format_timestamp(seconds):
 def get_available_gpus() -> List[int]:
     """برگرداندن لیست GPU های موجود"""
     return list(range(torch.cuda.device_count()))
+
+def extract_audio_with_ffmpeg(input_path: str) -> Optional[str]:
+    """استخراج صوت به WAV با تلاش‌های جایگزین برای فایل‌های معیوب/غیرمعمول.
+
+    برمی‌گرداند مسیر فایل WAV موقت در صورت موفقیت؛ وگرنه None
+    """
+    input_path_str = str(input_path)
+    tmp_wav_path = str(Path(input_path_str).with_suffix('.whisper.tmp.wav'))
+
+    def run_ffmpeg(cmd: List[str]) -> bool:
+        try:
+            result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, check=False)
+            return result.returncode == 0
+        except Exception:
+            return False
+
+    # تلاش اول: پارامترهای تحلیل بیشتر و نادیده گرفتن خطاهای زمانی
+    base_args = [
+        'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error', '-nostdin',
+        '-analyzeduration', '100M', '-probesize', '100M',
+        '-fflags', '+igndts+discardcorrupt', '-err_detect', 'ignore_err',
+        '-i', input_path_str,
+        '-vn', '-ac', '1', '-ar', '16000', tmp_wav_path
+    ]
+    if run_ffmpeg(base_args):
+        return tmp_wav_path
+
+    # تلاش دوم: اگر فایل مانند TS باشد اما پسوند MP4 داشته باشد، فرمت ورودی را mpegts فرض کن
+    ts_args = [
+        'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error', '-nostdin',
+        '-analyzeduration', '200M', '-probesize', '200M',
+        '-fflags', '+igndts+discardcorrupt', '-err_detect', 'ignore_err',
+        '-f', 'mpegts', '-i', input_path_str,
+        '-vn', '-ac', '1', '-ar', '16000', tmp_wav_path
+    ]
+    if run_ffmpeg(ts_args):
+        return tmp_wav_path
+
+    # تلاش سوم: با demuxing ساده‌تر
+    simple_args = [
+        'ffmpeg', '-y', '-hide_banner', '-loglevel', 'error', '-nostdin',
+        '-i', input_path_str, '-vn', '-ac', '1', '-ar', '16000', tmp_wav_path
+    ]
+    if run_ffmpeg(simple_args):
+        return tmp_wav_path
+
+    # ناموفق
+    return None
 
 def process_file_with_gpu(args: Tuple[str, str, str, int]) -> bool:
     """پردازش یک فایل با GPU مشخص شده"""
@@ -26,7 +76,11 @@ def process_file_with_gpu(args: Tuple[str, str, str, int]) -> bool:
             torch.cuda.set_device(gpu_id)
         model = whisper.load_model(model_name)
         
-        result = model.transcribe(video_file, language=language)
+        # ابتدا تلاش برای استخراج صوت با ffmpeg (برای فایل‌های ناقص/TS/استریم)
+        extracted_wav = extract_audio_with_ffmpeg(video_file)
+        transcribe_input = extracted_wav if extracted_wav else video_file
+
+        result = model.transcribe(transcribe_input, language=language)
         output_file = Path(video_file).with_suffix('.srt')
         
         with open(output_file, 'w', encoding='utf-8') as srt_file:
@@ -108,13 +162,23 @@ def process_directory(directory_path='.', model_name='large', language='ar'):
     print(f"🚀 شروع پردازش {len(files_to_process)} فایل...")
     print("=" * 60)
 
-    # پردازش موازی فایل‌ها
+    # پردازش موازی فایل‌ها با گزارش پیشرفت لحظه‌ای
+    successful = 0
+    completed = 0
+    total = len(files_to_process)
     with concurrent.futures.ProcessPoolExecutor(max_workers=len(available_gpus)) as executor:
-        results = list(executor.map(process_file_with_gpu, tasks))
-
-    # نمایش نتایج نهایی
-    successful = sum(1 for r in results if r)
-    failed = len(files_to_process) - successful
+        futures = [executor.submit(process_file_with_gpu, t) for t in tasks]
+        for fut in concurrent.futures.as_completed(futures):
+            try:
+                ok = fut.result()
+            except Exception:
+                ok = False
+            completed += 1
+            if ok:
+                successful += 1
+            remaining = total - completed
+            print(f"📦 پیشرفت: {completed}/{total} انجام شد | باقی‌مانده: {remaining}")
+    failed = total - successful
     
     print("=" * 60)
     print(f"🎉 پردازش کامل شد!")
