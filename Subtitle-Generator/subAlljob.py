@@ -75,6 +75,11 @@ def extract_audio_with_ffmpeg(input_path: str) -> Optional[str]:
         return tmp_wav_path
 
     # ناموفق
+    # ایجاد فایل نشانه شکست ffmpeg
+    try:
+        Path(input_path_str).with_suffix('.ffmpeg.failed').write_text('ffmpeg failed', encoding='utf-8')
+    except Exception:
+        pass
     return None
 
 def process_file_with_gpu(args: Tuple[str, str, str, int, int]) -> Tuple[bool, str, bool]:
@@ -201,7 +206,12 @@ def process_directory(directory_path='.', model_name='large', language='ar', log
         all_files.extend(glob.glob(os.path.join(directory_path, f'**/{ext}'), recursive=True))
     
     # فیلتر کردن فایل‌های پردازش نشده
-    files_to_process = [f for f in all_files if not Path(f).with_suffix('.srt').exists()]
+    # اگر فایل نشانه‌ی شکست ffmpeg (.ffmpeg.failed) وجود داشته باشد، از پردازش صرف نظر می‌شود
+    files_to_process = [
+        f for f in all_files
+        if not Path(f).with_suffix('.srt').exists()
+        and not Path(f).with_suffix('.ffmpeg.failed').exists()
+    ]
     
     if not files_to_process:
         print("✅ هیچ فایل مدیای بدون زیرنویس پیدا نشد.")
