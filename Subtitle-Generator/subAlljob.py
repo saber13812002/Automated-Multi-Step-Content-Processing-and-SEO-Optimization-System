@@ -77,14 +77,23 @@ def process_file_with_gpu(args: Tuple[str, str, str, int]) -> Tuple[bool, str, b
         # تنظیم GPU فقط اگر GPU معتبر است
         if gpu_id != -1:
             torch.cuda.set_device(gpu_id)
-        model = whisper.load_model(model_name)
+        # کمک به مدیریت حافظه CUDA
+        os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True,max_split_size_mb:128')
+        device_str = f"cuda:{gpu_id}" if gpu_id != -1 else "cpu"
+        model = whisper.load_model(model_name, device=device_str)
         
         # ابتدا تلاش برای استخراج صوت با ffmpeg (برای فایل‌های ناقص/TS/استریم)
         extracted_wav = extract_audio_with_ffmpeg(video_file)
         ffmpeg_ok = extracted_wav is not None
         transcribe_input = extracted_wav if ffmpeg_ok else video_file
 
-        result = model.transcribe(transcribe_input, language=language)
+        # کاهش پیچیدگی دیکودینگ برای مصرف حافظه کمتر
+        result = model.transcribe(
+            transcribe_input,
+            language=language,
+            condition_on_previous_text=False,
+            beam_size=1
+        )
         output_file = Path(video_file).with_suffix('.srt')
         
         with open(output_file, 'w', encoding='utf-8') as srt_file:
@@ -96,6 +105,35 @@ def process_file_with_gpu(args: Tuple[str, str, str, int]) -> Tuple[bool, str, b
         
         print(f'✅ زیرنویس در فایل {output_file} ذخیره شد (GPU {gpu_id})')
         return True, '', ffmpeg_ok
+    except RuntimeError as e:
+        msg = str(e)
+        # اگر OOM شد، یکبار با CPU تلاش مجدد
+        if 'CUDA out of memory' in msg or 'CUDA error' in msg:
+            try:
+                print(f'♻️ تلاش مجدد روی CPU به دلیل کمبود حافظه GPU برای {video_file}')
+                model = whisper.load_model(model_name, device='cpu')
+                extracted_wav = extract_audio_with_ffmpeg(video_file)
+                transcribe_input = extracted_wav if extracted_wav else video_file
+                result = model.transcribe(
+                    transcribe_input,
+                    language=language,
+                    condition_on_previous_text=False,
+                    beam_size=1
+                )
+                output_file = Path(video_file).with_suffix('.srt')
+                with open(output_file, 'w', encoding='utf-8') as srt_file:
+                    for j, segment in enumerate(result['segments'], start=1):
+                        start_time = format_timestamp(segment['start'])
+                        end_time = format_timestamp(segment['end'])
+                        text = segment['text'].strip()
+                        srt_file.write(f"{j}\n{start_time} --> {end_time}\n{text}\n\n")
+                print(f'✅ زیرنویس در فایل {output_file} ذخیره شد (CPU fallback)')
+                return True, '', extracted_wav is not None
+            except Exception as e2:
+                print(f'❌ شکست تلاش CPU برای {video_file}: {str(e2)}')
+                return False, f'GPU OOM then CPU failed: {str(e2)}', False
+        print(f'❌ خطای زمان اجرا: {msg}')
+        return False, msg, False
     except Exception as e:
         print(f'❌ خطا در پردازش {video_file} روی GPU {gpu_id}: {str(e)}')
         return False, str(e), False
