@@ -19,6 +19,16 @@ def get_available_gpus() -> List[int]:
     """برگرداندن لیست GPU های موجود"""
     return list(range(torch.cuda.device_count()))
 
+def get_gpu_free_mb(gpu_id: int) -> Optional[int]:
+    """برگرداندن میزان حافظه آزاد GPU بر حسب مگابایت؛ در صورت خطا None"""
+    try:
+        if torch.cuda.is_available() and gpu_id < torch.cuda.device_count():
+            free_bytes, total_bytes = torch.cuda.mem_get_info(gpu_id)
+            return int(free_bytes / (1024 * 1024))
+    except Exception:
+        pass
+    return None
+
 def extract_audio_with_ffmpeg(input_path: str) -> Optional[str]:
     """استخراج صوت به WAV با تلاش‌های جایگزین برای فایل‌های معیوب/غیرمعمول.
 
@@ -67,16 +77,21 @@ def extract_audio_with_ffmpeg(input_path: str) -> Optional[str]:
     # ناموفق
     return None
 
-def process_file_with_gpu(args: Tuple[str, str, str, int]) -> Tuple[bool, str, bool]:
+def process_file_with_gpu(args: Tuple[str, str, str, int, int]) -> Tuple[bool, str, bool]:
     """پردازش یک فایل با GPU مشخص شده
 
     خروجی: (موفقیت/شکست, پیام خطا، موفقیت استخراج ffmpeg)
     """
-    video_file, model_name, language, gpu_id = args
+    video_file, model_name, language, gpu_id, min_free_mb = args
     try:
         # تنظیم GPU فقط اگر GPU معتبر است
         if gpu_id != -1:
-            torch.cuda.set_device(gpu_id)
+            free_mb = get_gpu_free_mb(gpu_id)
+            if free_mb is not None and free_mb < max(256, min_free_mb):
+                # حافظه آزاد کافی نیست → روی CPU بیفتد
+                gpu_id = -1
+            else:
+                torch.cuda.set_device(gpu_id)
         # کمک به مدیریت حافظه CUDA
         os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True,max_split_size_mb:128')
         device_str = f"cuda:{gpu_id}" if gpu_id != -1 else "cpu"
@@ -138,7 +153,7 @@ def process_file_with_gpu(args: Tuple[str, str, str, int]) -> Tuple[bool, str, b
         print(f'❌ خطا در پردازش {video_file} روی GPU {gpu_id}: {str(e)}')
         return False, str(e), False
 
-def process_directory(directory_path='.', model_name='large', language='ar', logfile: Optional[str] = None, ffmpeg_logfile: Optional[str] = None):
+def process_directory(directory_path='.', model_name='large', language='ar', logfile: Optional[str] = None, ffmpeg_logfile: Optional[str] = None, min_free_mb: int = 2048):
     print("🎬 خوش آمدید! سیستم تولید زیرنویس Whisper شروع به کار کرد...")
     print("=" * 60)
     
@@ -199,7 +214,7 @@ def process_directory(directory_path='.', model_name='large', language='ar', log
     tasks = []
     for i, video_file in enumerate(files_to_process):
         gpu_id = available_gpus[i % len(available_gpus)]
-        tasks.append((video_file, model_name, language, gpu_id))
+        tasks.append((video_file, model_name, language, gpu_id, min_free_mb))
 
     print(f"🚀 شروع پردازش {len(files_to_process)} فایل...")
     print("=" * 60)
@@ -266,7 +281,8 @@ if __name__ == '__main__':
     parser.add_argument('--language', default='ar', help='کد زبان (پیش‌فرض: ar)')
     parser.add_argument('--logfile', default='failed_media.log', help='مسیر فایل لاگ شکست‌های پردازش')
     parser.add_argument('--ffmpeg-logfile', default='failed_ffmpeg.log', help='مسیر فایل لاگ شکست‌های استخراج ffmpeg')
+    parser.add_argument('--min-free-mb', type=int, default=2048, help='حداقل حافظه آزاد GPU (MB) برای اجرای هر پردازش؛ کمتر از این روی CPU اجرا می‌شود')
     
     args = parser.parse_args()
     
-    process_directory(args.directory, args.model, args.language, args.logfile, args.ffmpeg_logfile)
+    process_directory(args.directory, args.model, args.language, args.logfile, args.ffmpeg_logfile, args.min_free_mb)
