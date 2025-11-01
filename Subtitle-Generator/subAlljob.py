@@ -88,6 +88,7 @@ def process_file_with_gpu(args: Tuple[str, str, str, int, int]) -> Tuple[bool, s
     خروجی: (موفقیت/شکست, پیام خطا، موفقیت استخراج ffmpeg)
     """
     video_file, model_name, language, gpu_id, min_free_mb = args
+    extracted_wav = None
     try:
         # تنظیم GPU فقط اگر GPU معتبر است
         if gpu_id != -1:
@@ -127,13 +128,22 @@ def process_file_with_gpu(args: Tuple[str, str, str, int, int]) -> Tuple[bool, s
         return True, '', ffmpeg_ok
     except RuntimeError as e:
         msg = str(e)
+        # پاک کردن فایل موقت قبلی قبل از تلاش مجدد
+        if extracted_wav and Path(extracted_wav).exists():
+            try:
+                Path(extracted_wav).unlink()
+            except Exception:
+                pass
+            extracted_wav = None
+        
         # اگر OOM شد، یکبار با CPU تلاش مجدد
         if 'CUDA out of memory' in msg or 'CUDA error' in msg:
+            cpu_extracted_wav = None
             try:
                 print(f'♻️ تلاش مجدد روی CPU به دلیل کمبود حافظه GPU برای {video_file}')
                 model = whisper.load_model(model_name, device='cpu')
-                extracted_wav = extract_audio_with_ffmpeg(video_file)
-                transcribe_input = extracted_wav if extracted_wav else video_file
+                cpu_extracted_wav = extract_audio_with_ffmpeg(video_file)
+                transcribe_input = cpu_extracted_wav if cpu_extracted_wav else video_file
                 result = model.transcribe(
                     transcribe_input,
                     language=language,
@@ -148,15 +158,29 @@ def process_file_with_gpu(args: Tuple[str, str, str, int, int]) -> Tuple[bool, s
                         text = segment['text'].strip()
                         srt_file.write(f"{j}\n{start_time} --> {end_time}\n{text}\n\n")
                 print(f'✅ زیرنویس در فایل {output_file} ذخیره شد (CPU fallback)')
-                return True, '', extracted_wav is not None
+                return True, '', cpu_extracted_wav is not None
             except Exception as e2:
                 print(f'❌ شکست تلاش CPU برای {video_file}: {str(e2)}')
                 return False, f'GPU OOM then CPU failed: {str(e2)}', False
+            finally:
+                # پاک کردن فایل موقت CPU fallback
+                if cpu_extracted_wav and Path(cpu_extracted_wav).exists():
+                    try:
+                        Path(cpu_extracted_wav).unlink()
+                    except Exception:
+                        pass
         print(f'❌ خطای زمان اجرا: {msg}')
         return False, msg, False
     except Exception as e:
         print(f'❌ خطا در پردازش {video_file} روی GPU {gpu_id}: {str(e)}')
         return False, str(e), False
+    finally:
+        # پاک کردن فایل موقت WAV در همه حالات
+        if extracted_wav and Path(extracted_wav).exists():
+            try:
+                Path(extracted_wav).unlink()
+            except Exception:
+                pass
 
 def process_directory(directory_path='.', model_name='large', language='ar', logfile: Optional[str] = None, ffmpeg_logfile: Optional[str] = None, min_free_mb: int = 2048):
     print("🎬 خوش آمدید! سیستم تولید زیرنویس Whisper شروع به کار کرد...")
@@ -245,11 +269,6 @@ def process_directory(directory_path='.', model_name='large', language='ar', log
     except Exception:
         pass
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=len(available_gpus)) as executor:
-        futures = [(executor.submit(process_file_with_gpu, t), t[0]) for t in tasks]
-        for fut, src_file in concurrent.futures.as_completed([f for f, _ in futures]):
-            pass
-    # The above attempt to use as_completed with tuple unpacking is incorrect; implement correctly:
     with concurrent.futures.ProcessPoolExecutor(max_workers=len(available_gpus)) as executor:
         future_to_file = {executor.submit(process_file_with_gpu, t): t[0] for t in tasks}
         for fut in concurrent.futures.as_completed(future_to_file):
