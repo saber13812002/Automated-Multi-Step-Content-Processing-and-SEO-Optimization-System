@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: chromadb
+    restart: unless-stopped
+    environment:
+      - ANONYMIZED_TELEMETRY=False
+      - CHROMA_SERVER_AUTH_CREDENTIALS=${CHROMA_API_KEY:-}
+      - CHROMA_SERVER_AUTH_PROVIDER=chromadb.auth.token.TokenAuthServerProvider
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/app/data
+    command: >
+      --host 0.0.0.0
+      --port 8000
+      --workers 1
+      --chromadb-allow-reset
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  chroma_data:
+
