@@ -48,7 +48,7 @@ python export-sql-backup-to-chromadb.py \
 
 
 ```bash
-python export-sql-backup-to-chromadb.py   --sql-path book_pages.sql   --collection book_pages_mini   --host 192.168.1.68   --port 8000  --embedding-provider openai   --reset
+python3 export-sql-backup-to-chromadb.py   --sql-path book_pages_mini.sql   --collection book_pages_mini   --host 192.168.1.68   --port 8000  --embedding-provider openai   --reset
 ```
 
 
