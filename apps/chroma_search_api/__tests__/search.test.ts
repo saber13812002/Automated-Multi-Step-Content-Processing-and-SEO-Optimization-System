@@ -55,7 +55,7 @@ describe('GET /search', () => {
   it('respects pagination parameter', async () => {
     mockedQueryChroma.mockResolvedValue({
       ids: [['doc-1', 'doc-2', 'doc-3', 'doc-4']],
-      documents: [['aaaaa', 'bbbbb', 'ccccc', 'ddddd']],
+      documents: [['document-one', 'document-two', 'document-three', 'document-four']],
       metadatas: [[{}, {}, {}, {}]],
       distances: [[0.1, 0.2, 0.3, 0.4]]
     });

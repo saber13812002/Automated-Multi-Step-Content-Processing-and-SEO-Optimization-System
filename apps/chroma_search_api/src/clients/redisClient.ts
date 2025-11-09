@@ -8,7 +8,6 @@ let redisInstance: Redis | null = null;
 export const getRedisClient = (): Redis => {
   if (!redisInstance) {
     redisInstance = new Redis(appConfig.redisUrl, {
-      lazyConnect: true,
       maxRetriesPerRequest: null,
       enableReadyCheck: true
     });

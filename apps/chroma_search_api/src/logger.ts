@@ -1,4 +1,6 @@
-import pino from 'pino';
+import type { IncomingMessage, ServerResponse } from 'http';
+
+import pino, { type Logger as PinoLogger } from 'pino';
 import pinoHttp from 'pino-http';
 
 import { appConfig } from './config';
@@ -20,8 +22,12 @@ const baseLogger = pino({
 
 export const logger = baseLogger;
 
-export const httpLogger = pinoHttp({
-  logger: baseLogger,
-  customLogLevel: (_req, res) => (res.statusCode >= 500 ? 'error' : 'info')
-});
+export const httpLogger = pinoHttp(
+  {
+    // Casting to any until upstream typings support logger with transport-enabled instance.
+    logger: baseLogger as unknown as PinoLogger,
+    customLogLevel: (_req: IncomingMessage, res: ServerResponse) =>
+      res.statusCode >= 500 ? 'error' : 'info'
+  } as any
+);
 
