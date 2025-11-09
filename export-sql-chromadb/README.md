@@ -46,6 +46,12 @@ python export-sql-backup-to-chromadb.py \
   --reset
 ```
 
+
+```bash
+python export-sql-backup-to-chromadb.py   --sql-path book_pages.sql   --collection book_pages_mini   --host 192.168.1.68   --port 8000  --embedding-provider openai   --reset
+```
+
+
 - گزینه `--reset` کالکشن قبلی را حذف و داده‌های جدید را جایگزین می‌کند.
 - اگر از ChromaDB توکار (Persist Client) استفاده می‌کنید، گزینه `--persist-directory ./chroma-store` را اضافه کنید.
 - در صورت نبود کلید OpenAI می‌توانید `--embedding-provider none` را انتخاب کنید؛ در این حالت فرض می‌شود سمت سرور امبدینگ تولید می‌شود.
