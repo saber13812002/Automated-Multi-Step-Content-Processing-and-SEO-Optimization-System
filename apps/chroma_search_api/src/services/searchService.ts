@@ -1,8 +1,8 @@
 import type Redis from 'ioredis';
 
+import { queryChroma } from '../clients/chromaClient';
 import { appConfig } from '../config';
 import { logger } from '../logger';
-import { queryChroma } from '../clients/chromaClient';
 
 type SearchResultItem = {
   id: string;
@@ -92,4 +92,3 @@ export const searchWithCache = async (params: {
 
   return { ...payload, source: 'chroma' };
 };
-

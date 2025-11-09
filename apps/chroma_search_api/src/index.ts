@@ -1,7 +1,7 @@
 import { createServer } from 'http';
 
-import { appConfig } from './config';
 import { createApp } from './app';
+import { appConfig } from './config';
 import { logger } from './logger';
 
 const app = createApp();
@@ -21,4 +21,3 @@ const gracefulShutdown = () => {
 
 process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
-

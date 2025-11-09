@@ -60,4 +60,3 @@ export const queryChroma = async (phrase: string): Promise<ChromaQueryResponse> 
 
   return response.data as ChromaQueryResponse;
 };
-

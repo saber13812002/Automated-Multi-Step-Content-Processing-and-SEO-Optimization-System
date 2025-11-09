@@ -1,0 +1,119 @@
+## Chroma Search API
+
+TypeScript Express service that accepts free-text phrases, checks Redis for cached responses, and falls back to ChromaDB with pagination and minimum document-length filtering. All cache hits/misses and downstream calls are logged with Pino.
+
+### Features
+- `GET /search?phrase=...&page=1&pageSize=5` endpoint with validation via Zod.
+- Redis-backed caching with configurable TTL and cache-key structure.
+- ChromaDB client that supports pagination, document length filtering, and optional API token.
+- Structured logging of requests, cache interactions, and Chroma responses.
+- Jest + Supertest test suite using stubbed Chroma responses and an in-memory Redis mock.
+
+### Prerequisites
+- Node.js 20+
+- npm 9+
+- Docker Desktop (for Redis/ChromaDB containers)
+
+### Environment Configuration
+1. Copy the example environment file and customize as needed:
+   ```powershell
+   cd apps/chroma_search_api
+   Copy-Item env.example .env
+   ```
+2. Optionally keep a developer-friendly profile:
+   ```powershell
+   Copy-Item env.development .env
+   ```
+3. Required keys:
+   - `CHROMA_COLLECTION`: existing Chroma collection to query.
+   - `REDIS_URL`: Redis connection string (defaults to `redis://localhost:6379`).
+   - `CHROMA_API_BASE_URL`: e.g. `http://localhost:8000` when using the provided Docker stack.
+   - `DEV_SCRAPE_URL`: URL for a single dev page to experiment with scraping/embedding (no code uses it directly yet, but it is surfaced via configuration for tooling).
+
+### Install Dependencies
+```powershell
+cd apps/chroma_search_api
+npm install
+```
+
+### Run the API
+- Development (with hot reload):
+  ```powershell
+  npm run dev
+  ```
+- Production build:
+  ```powershell
+  npm run build
+  npm start
+  ```
+
+### API Usage
+```bash
+curl "http://localhost:4000/search?phrase=hello%20world&page=1"
+```
+Response schema:
+```json
+{
+  "items": [
+    {
+      "id": "doc-1",
+      "document": "…",
+      "metadata": { "source": "…" },
+      "distance": 0.12
+    }
+  ],
+  "pagination": {
+    "page": 1,
+    "pageSize": 10,
+    "totalPages": 3,
+    "totalResults": 23
+  },
+  "source": "cache"
+}
+```
+
+### Running Redis with Docker
+1. From `apps/chroma_search_api`:
+   ```powershell
+   docker compose -f docker-compose.redis.yml up -d
+   ```
+2. Verify:
+   ```powershell
+   docker ps --filter "name=chroma-cache-redis"
+   ```
+3. Stop when finished:
+   ```powershell
+   docker compose -f docker-compose.redis.yml down
+   ```
+
+### Running ChromaDB with Docker
+The project already includes a Chroma-ready compose stack at `export-sql-chromadb/docker-compose.yml`.
+
+1. From the repository root:
+   ```powershell
+   cd export-sql-chromadb
+   docker compose up -d
+   ```
+2. Confirm the container is healthy:
+   ```powershell
+   curl http://localhost:8000/api/v1/heartbeat
+   ```
+3. Use the same `.env` values (`CHROMA_API_BASE_URL=http://localhost:8000`, `CHROMA_API_KEY` if configured).
+4. Tear down:
+   ```powershell
+   docker compose down
+   ```
+
+### Tests
+Unit and request specs rely on hard-coded mock documents:
+```powershell
+npm test
+```
+
+### Logging
+Pino logs every request and cache interaction. In development, logs are prettified. In production, JSON logs are emitted for aggregation.
+
+### Additional Notes
+- Redis TTL and Chroma pagination bounds are managed via environment variables; adjust them to balance cache freshness and Chroma load.
+- The optional `DEV_SCRAPE_URL` is provided so companion tooling can pull a single page for embeddings during development.
+
