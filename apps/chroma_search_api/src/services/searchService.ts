@@ -62,12 +62,12 @@ export const searchWithCache = async (params: {
     .filter((item) => item.document?.length >= appConfig.chroma.minDocLength);
 
   const totalResults = combined.length;
-  const totalPages = Math.max(1, Math.ceil(totalResults / pageSize));
+  const totalPages = totalResults === 0 ? 0 : Math.ceil(totalResults / pageSize);
 
   const startIndex = (page - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, combined.length);
 
-  if (page > totalPages) {
+  if (totalPages > 0 && page > totalPages) {
     logger.warn({ page, totalPages }, 'Requested page beyond available results');
   }
 

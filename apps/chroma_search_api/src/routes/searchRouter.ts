@@ -23,7 +23,7 @@ searchRouter.get('/', async (req, res, next) => {
     const { phrase, page, pageSize } = querySchema.parse(req.query);
     const redis = getRedisClient();
 
-    if (!redis.status || redis.status === 'wait') {
+    if (redis.status !== 'ready' && typeof redis.connect === 'function') {
       await redis.connect();
     }
 
