@@ -14,6 +14,9 @@
 python -m venv .venv
 .venv\Scripts\activate             # در ویندوز
 # یا
+sudo apt update
+sudo apt install python3.12-venv
+python3 -m venv .venv
 source .venv/bin/activate          # در لینوکس/مک
 
 pip install -r requirements.txt
