@@ -5,3 +5,4 @@ media/*/*.wav
 /Subtitle-Generator/myenv/*
 /summerized/venv/*
 *.mpg
+export-sql-chromadb/.env
