@@ -68,6 +68,9 @@ python export-sql-backup-to-chromadb.py \
   --embedding-provider none \
   --reset
 ```
+```bash
+python3 export-sql-backup-to-chromadb.py   --sql-path books_pages_mini.sql   --collection book_pages_mini   --embedding-provider none   --reset
+```
 - Switch to OpenAI embeddings by adding `--embedding-provider openai --openai-api-key "$OPENAI_API_KEY"` (model defaults to `text-embedding-3-small` for lower cost).
 - `--embedding-provider none` avoids client-side embedding generation, resulting in zero token spend; ensure your server workflow handles embeddings if you choose this mode.
 - `--reset` drops the existing collection before inserting; omit it when you want to append to an existing dataset.
