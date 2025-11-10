@@ -68,13 +68,19 @@ python export-sql-backup-to-chromadb.py \
   --embedding-provider none \
   --reset
 ```
+or this
 ```bash
 python3 export-sql-backup-to-chromadb.py   --sql-path books_pages_mini.sql   --collection book_pages_mini   --embedding-provider none   --reset
 ```
 - Switch to OpenAI embeddings by adding `--embedding-provider openai --openai-api-key "$OPENAI_API_KEY"` (model defaults to `text-embedding-3-small` for lower cost).
 - `--embedding-provider none` avoids client-side embedding generation, resulting in zero token spend; ensure your server workflow handles embeddings if you choose this mode.
 - `--reset` drops the existing collection before inserting; omit it when you want to append to an existing dataset.
-**Check:** در خروجی کنسول باید پیغام `✅ Export completed. Segments added: ...` مشاهده شود و اگر خطایی رخ دهد، پیام آن ثبت می‌شود؛ در صورت نیاز می‌توانید با `docker logs <container>` جزئیات بیشتر را ببینید. اسکریپت برای نسخه‌های جدید Chroma که استثناء `InvalidCollectionException` را حذف کرده‌اند به‌روزرسانی شده است، پس نباید خطای Import ببینید؛ اگر بسته‌ی قدیمی‌تری نصب شد، با `pip install --upgrade chromadb` آن را به‌روزرسانی کنید.
+**Check:** در خروجی کنسول باید پیغام `✅ Export completed. Segments added: ...` مشاهده شود و اگر خطایی رخ دهد، پیام آن ثبت می‌شود؛ در صورت نیاز می‌توانید با `docker logs <container>` جزئیات بیشتر را ببینید. اسکریپت برای نسخه‌های جدید Chroma که استثناء `InvalidCollectionException` را حذف کرده‌اند به‌روزرسانی شده است، پس نباید خطای Import ببینید؛ اگر بسته‌ی قدیمی‌تری نصب شد، با `pip install --upgrade chromadb` آن را به‌روزرسانی کنید. توجه داشته باشید که در اولین اجرا، Chroma ممکن است مدل‌های ONNX (مثلاً `all-MiniLM-L6-v2`) را از اینترنت دانلود و در مسیر `~/.cache/chroma/onnx_models/` ذخیره کند؛ این روند طبیعی است و پس از تکمیل، اجراهای بعدی سریع‌تر خواهند بود.
+نمونه‌ی خروجی معمولاً شبیه زیر است:
+```
+/root/.cache/chroma/onnx_models/all-MiniLM-L6-v2/onnx.tar.gz: 100%|████████████████████████████████| 79.3M/79.3M [07:10<00:00, 193kiB/s]
+✅ Export completed. Segments added: 1130
+```
 
 ---
 
