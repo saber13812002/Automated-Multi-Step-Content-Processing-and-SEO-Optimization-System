@@ -86,6 +86,16 @@ python verify_chroma_export.py `
 ```
 - خروجی شامل `id`, `distance`, `metadata.source_link` و بخش‌هایی از متن است تا کیفیت داده‌ها را ارزیابی کنید.
 - اگر اسکريپت در حالت `--embedding-provider none` اجرا شده باشد، جست‌وجوی برداری ممکن است نتیجه‌ای ندهد مگر آن‌که سمت سرور امبدینگ تولید شود.
+> **نمونه بررسی لینک خاص:** برای اطمینان از وجود لینک‌هایی مثل `https://mesbahyazdi.ir/node/1003#p11`، همان فرمان را با کوئری هدفمند امتحان کنید:
+```powershell
+python verify_chroma_export.py `
+  --collection book_pages_mini `
+  --query "اعتقاد به آفریننده" `
+  --host localhost `
+  --port 8000 `
+  --top-k 10
+```
+در خروجی، به `metadata.source_link` نگاه کنید؛ حضور لینک مذکور نشان می‌دهد رکورد مورد نظر بارگذاری شده است. اگر API جست‌وجوی Node.js فعال باشد، می‌توانید با `curl "http://localhost:4000/search?phrase=اعتقاد%20به%20آفریننده"` نتیجه را مستقیماً از وب‌سرویس ببینید.
 
 ---
 

@@ -103,6 +103,21 @@ python verify_chroma_export.py \
 ```
 - Successful responses include the document ID, distance score, `metadata.source_link`, and a text preview for each match.
 - If you exported without embeddings, vector searches may return empty results unless embeddings are generated server-side.
+> **Example sanity check:** برای اطمینان از ذخیره شدن لینک‌های خاص، می‌توانید کوئری هدفمند بزنید:
+```bash
+python verify_chroma_export.py \
+  --collection book_pages_mini \
+  --query "اعتقاد به آفریننده" \
+  --host localhost \
+  --port 8000 \
+  --top-k 10
+```
+یا
+```bash
+python3 verify_chroma_export.py   --collection book_pages_mini   --query "اعتقاد به آفریننده"   --host localhost   --port 8000   --top-k 10
+```
+در خروجی، به دنبال `metadata.source_link` با مقدار `https://mesbahyazdi.ir/node/1003#p11` بگردید؛ وجود آن نشان می‌دهد رکورد مربوطه به‌درستی بارگذاری شده است.
+اگر API جست‌وجوی Node.js را بالا آورده‌اید، می‌توانید همان عبارت را با `curl "http://localhost:4000/search?phrase=اعتقاد%20به%20آفریننده"` امتحان کنید و در نتایج به همان لینک توجه نمایید.
 **Check:** در خروجی اسکریپت باید آرایه‌ی `items` با حداقل یک نتیجه (یا توضیح قابل انتظار) نمایش داده شود؛ در صورت نبود نتیجه، لاگ‌ها و تنظیمات کالکشن را بازبینی کنید.
 
 ---
