@@ -52,10 +52,10 @@ export CHROMA_COLLECTION=book_pages_mini
 ```bash
 cd export-sql-chromadb
 docker compose up -d          # uses docker-compose.yml in this directory
-curl http://localhost:8000/api/v1/heartbeat
+curl http://localhost:8000/api/v2/heartbeat
 ```
 Adjust the URL if you customised host or port. The heartbeat endpoint should return a JSON payload confirming the service is healthy.
-**Check:** دستور `docker ps --filter "name=chroma"` باید کانتینر در حال اجرا را نشان دهد و خروجی heartbeat نباید خطا یا زمان‌انتظار طولانی داشته باشد.
+**Check:** دستور `docker ps --filter "name=chroma"` باید کانتینر در حال اجرا را نشان دهد و خروجی heartbeat نباید خطا یا زمان‌انتظار طولانی داشته باشد (پاسخ JSON با کلیدهایی مثل `nanosecond heartbeat` نشان می‌دهد API نسخه‌ی ۲ در دسترس است).
 
 ---
 
@@ -74,7 +74,7 @@ python3 export-sql-backup-to-chromadb.py   --sql-path books_pages_mini.sql   --c
 - Switch to OpenAI embeddings by adding `--embedding-provider openai --openai-api-key "$OPENAI_API_KEY"` (model defaults to `text-embedding-3-small` for lower cost).
 - `--embedding-provider none` avoids client-side embedding generation, resulting in zero token spend; ensure your server workflow handles embeddings if you choose this mode.
 - `--reset` drops the existing collection before inserting; omit it when you want to append to an existing dataset.
-**Check:** در خروجی کنسول باید پیغام `✅ Export completed. Segments added: ...` مشاهده شود و اگر خطایی رخ دهد، پیام آن ثبت می‌شود؛ در صورت نیاز می‌توانید با `docker logs <container>` جزئیات بیشتر را ببینید.
+**Check:** در خروجی کنسول باید پیغام `✅ Export completed. Segments added: ...` مشاهده شود و اگر خطایی رخ دهد، پیام آن ثبت می‌شود؛ در صورت نیاز می‌توانید با `docker logs <container>` جزئیات بیشتر را ببینید. اسکریپت برای نسخه‌های جدید Chroma که استثناء `InvalidCollectionException` را حذف کرده‌اند به‌روزرسانی شده است، پس نباید خطای Import ببینید؛ اگر بسته‌ی قدیمی‌تری نصب شد، با `pip install --upgrade chromadb` آن را به‌روزرسانی کنید.
 
 ---
 

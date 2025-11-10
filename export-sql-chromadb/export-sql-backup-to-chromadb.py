@@ -9,9 +9,15 @@ from pathlib import Path
 from typing import Iterable, Iterator, List, Optional, Sequence, Tuple
 
 import chromadb
-from chromadb.config import Settings
-from chromadb.errors import InvalidCollectionException, NotFoundError
 from bs4 import BeautifulSoup
+from chromadb.config import Settings
+
+try:
+    from chromadb.errors import InvalidCollectionException, NotFoundError
+except ImportError:  # pragma: no cover - compatibility with newer Chroma releases
+    from chromadb.errors import NotFoundError
+
+    InvalidCollectionException = None  # type: ignore[assignment]
 
 try:
     from chromadb.utils import embedding_functions
@@ -269,9 +275,12 @@ def create_client(args: argparse.Namespace):
 
 def get_collection(client, name: str, metadata: dict, reset: bool):
     if reset:
+        ignored_exceptions = (NotFoundError,)
+        if InvalidCollectionException is not None:
+            ignored_exceptions = ignored_exceptions + (InvalidCollectionException,)
         try:
             client.delete_collection(name)
-        except (NotFoundError, InvalidCollectionException):
+        except ignored_exceptions:
             pass
 
     try:
