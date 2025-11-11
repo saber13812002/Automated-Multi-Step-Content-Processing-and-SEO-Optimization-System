@@ -3,15 +3,15 @@ services:
   gitlab:
     image: docker.io/gitlab/gitlab-ce:latest
     restart: always
-    hostname: '192.168.2.246' # You can customize this with your own domain or IP
+    hostname: '192.168.1.68'
     container_name: gitlab
     ports:
-      - "80:80"   # HTTP
-      - "443:443" # HTTPS
-      - "23:22"   # SSH
+      - "80:80"
+      - "443:443"
+      - "23:22"
     volumes:
-      - ./config:/etc/gitlab
+      - ./gitlab-config:/etc/gitlab
       - ./logs:/var/log/gitlab
       - ./data:/var/opt/gitlab
     environment:
-      - GITLAB_OMNIBUS_CONFIG="external_url 'http://192.168.2.246'"
+      - GITLAB_OMNIBUS_CONFIG="external_url 'http://192.168.1.68'"
