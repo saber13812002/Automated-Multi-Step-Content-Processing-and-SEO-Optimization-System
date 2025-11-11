@@ -15,6 +15,9 @@ python verify_chroma_export.py \
   --top-k 10
 ```
 
+```bash
+python verify_chroma_export.py   --collection book_pages_mini   --query "اعتقاد به آفریننده"   --host localhost   --port 8000   --top-k 10
+```
 **پارامترهای مهم**
 - `--collection`: نام کالکشنی که قبلاً توسط اسکریپت اکسپورت ایجاد شده است.
 - `--query`: متن مورد جست‌وجو؛ می‌توانید آن را با عبارت دلخواه جایگزین کنید.
