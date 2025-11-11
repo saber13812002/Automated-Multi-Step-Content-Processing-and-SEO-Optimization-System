@@ -12,7 +12,7 @@ services:
       - "2222:22"     # SSH
     environment:
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://<SERVER_IP>'   # جایگزین با IP سرور یا دامنه
+        external_url 'http://192.168.1.68'   # جایگزین با IP سرور یا دامنه
 
         # Use external PostgreSQL
         postgresql['enable'] = false
@@ -22,7 +22,7 @@ services:
         gitlab_rails['db_database'] = 'gitlabhq_production'
         gitlab_rails['db_username'] = 'postgres'
         gitlab_rails['db_password'] = 'postgres'
-        gitlab_rails['db_host'] = '<SERVER_IP>'   # یا localhost اگر روی همان سرور است
+        gitlab_rails['db_host'] = '192.168.1.68'   # یا localhost اگر روی همان سرور است
         gitlab_rails['db_port'] = 5433
     volumes:
       - gitlab_config:/etc/gitlab
