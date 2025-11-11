@@ -10,8 +10,10 @@ export type ChromaQueryResponse = {
   distances?: number[][];
 };
 
+const API_VERSION_PATH = '/api/v2';
+
 const httpClient = axios.create({
-  baseURL: `${appConfig.chroma.baseUrl}/api/v1`,
+  baseURL: appConfig.chroma.baseUrl,
   headers: {
     'Content-Type': 'application/json'
   },
@@ -52,7 +54,7 @@ httpClient.interceptors.response.use(
 );
 
 export const queryChroma = async (phrase: string): Promise<ChromaQueryResponse> => {
-  const response = await httpClient.post(`/collections/${appConfig.chroma.collection}/query`, {
+  const response = await httpClient.post(`${API_VERSION_PATH}/collections/${appConfig.chroma.collection}/query`, {
     query_texts: [phrase],
     n_results: appConfig.chroma.pageSize * appConfig.chroma.maxPages,
     include: ['documents', 'metadatas', 'distances']

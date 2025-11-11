@@ -27,7 +27,7 @@ TypeScript Express service that accepts free-text phrases, checks Redis for cach
 3. Required keys:
    - `CHROMA_COLLECTION`: existing Chroma collection to query.
    - `REDIS_URL`: Redis connection string (defaults to `redis://localhost:6379`).
-   - `CHROMA_API_BASE_URL`: e.g. `http://localhost:8000` when using the provided Docker stack.
+   - `CHROMA_API_BASE_URL`: e.g. `http://localhost:8000` when using the provided Docker stack (the service automatically targets `/api/v2` routes).
    - `DEV_SCRAPE_URL`: URL for a single dev page to experiment with scraping/embedding (no code uses it directly yet, but it is surfaced via configuration for tooling).
 
 ### Install Dependencies
@@ -96,7 +96,7 @@ The project already includes a Chroma-ready compose stack at `export-sql-chromad
    ```
 2. Confirm the container is healthy:
    ```powershell
-   curl http://localhost:8000/api/v1/heartbeat
+   curl http://localhost:8000/api/v2/heartbeat
    ```
 3. Use the same `.env` values (`CHROMA_API_BASE_URL=http://localhost:8000`, `CHROMA_API_KEY` if configured).
 4. Tear down:
