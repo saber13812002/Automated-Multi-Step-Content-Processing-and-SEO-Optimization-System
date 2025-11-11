@@ -1,17 +1,35 @@
-version: '3.9'
+version: "3.9"
+
 services:
   gitlab:
     image: gitlab/gitlab-ce:16.3.2-ce.0
-    restart: always
-    hostname: '192.168.1.68'
     container_name: gitlab
+    hostname: gitlab.local
+    restart: always
     ports:
-      - "80:80"
-      - "443:443"
-      - "23:22"
-    volumes:
-      - ./gitlab-config:/etc/gitlab
-      - ./logs:/var/log/gitlab
-      - ./data:/var/opt/gitlab
+      - "80:80"       # HTTP روی همه‌ی IPها
+      - "443:443"     # HTTPS
+      - "2222:22"     # SSH
     environment:
-      - GITLAB_OMNIBUS_CONFIG="external_url 'http://192.168.1.68'"
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://<SERVER_IP>'   # جایگزین با IP سرور یا دامنه
+
+        # Use external PostgreSQL
+        postgresql['enable'] = false
+        gitlab_rails['db_adapter'] = 'postgresql'
+        gitlab_rails['db_encoding'] = 'utf8'
+        gitlab_rails['db_collation'] = 'en_US.UTF-8'
+        gitlab_rails['db_database'] = 'gitlabhq_production'
+        gitlab_rails['db_username'] = 'postgres'
+        gitlab_rails['db_password'] = 'postgres'
+        gitlab_rails['db_host'] = '<SERVER_IP>'   # یا localhost اگر روی همان سرور است
+        gitlab_rails['db_port'] = 5433
+    volumes:
+      - gitlab_config:/etc/gitlab
+      - gitlab_logs:/var/log/gitlab
+      - gitlab_data:/var/opt/gitlab
+
+volumes:
+  gitlab_config:
+  gitlab_logs:
+  gitlab_data:
