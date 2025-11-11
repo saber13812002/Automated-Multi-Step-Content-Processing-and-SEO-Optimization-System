@@ -24,6 +24,13 @@ services:
         gitlab_rails['db_password'] = 'postgres'
         gitlab_rails['db_host'] = '192.168.1.68'   # یا localhost اگر روی همان سرور است
         gitlab_rails['db_port'] = 5433
+
+        # Redis خارجی
+        redis['enable'] = false
+        gitlab_rails['redis_host'] = '192.168.1.68'
+        gitlab_rails['redis_port'] = 6379   # پورت Redis سرور
+        # gitlab_rails['redis_password'] = '' # اگر پسورد دارد اینجا بگذار
+
     volumes:
       - gitlab_config:/etc/gitlab
       - gitlab_logs:/var/log/gitlab
