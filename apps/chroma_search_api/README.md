@@ -92,6 +92,7 @@ npm install
     }
   }
   ```
+  > اگر سرور Chroma فقط از API قدیمی (`/api/v1`) پشتیبانی کند، این مسیر به‌صورت خودکار به نسخه قدیمی برمی‌گردد.
 
 ### Running Redis with Docker
 1. From `apps/chroma_search_api`:

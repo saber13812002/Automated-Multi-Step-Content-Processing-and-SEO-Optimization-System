@@ -17,6 +17,7 @@ export type ChromaCollectionSummary = {
 };
 
 const API_VERSION_PATH = '/api/v2';
+const LEGACY_API_VERSION_PATH = '/api/v1';
 
 const httpClient = axios.create({
   baseURL: appConfig.chroma.baseUrl,
@@ -69,14 +70,11 @@ export const queryChroma = async (phrase: string): Promise<ChromaQueryResponse> 
   return response.data as ChromaQueryResponse;
 };
 
-export const listChromaCollections = async (): Promise<ChromaCollectionSummary[]> => {
-  const response = await httpClient.get(`${API_VERSION_PATH}/collections`);
-  const data = response.data as { collections?: unknown } | unknown[];
-
-  const collections = Array.isArray((data as { collections?: unknown[] }).collections)
-    ? ((data as { collections?: unknown[] }).collections as Record<string, unknown>[])
-    : Array.isArray(data)
-      ? (data as Record<string, unknown>[])
+const normalizeCollections = (payload: unknown): ChromaCollectionSummary[] => {
+  const collections = Array.isArray((payload as { collections?: unknown[] }).collections)
+    ? ((payload as { collections?: unknown[] }).collections as Record<string, unknown>[])
+    : Array.isArray(payload)
+      ? (payload as Record<string, unknown>[])
       : [];
 
   return collections.map((collection) => ({
@@ -87,4 +85,22 @@ export const listChromaCollections = async (): Promise<ChromaCollectionSummary[]
         ? (collection.metadata as Record<string, unknown>)
         : undefined
   }));
+};
+
+const fetchCollections = async (path: string) => {
+  const response = await httpClient.get(`${path}/collections`);
+  return response.data;
+};
+
+export const listChromaCollections = async (): Promise<ChromaCollectionSummary[]> => {
+  try {
+    const data = await fetchCollections(API_VERSION_PATH);
+    return normalizeCollections(data);
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      const legacyData = await fetchCollections(LEGACY_API_VERSION_PATH);
+      return normalizeCollections(legacyData);
+    }
+    throw error;
+  }
 };
