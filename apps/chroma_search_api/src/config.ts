@@ -11,6 +11,7 @@ const envSchema = z.object({
   CHROMA_API_BASE_URL: z.string().url().default('http://localhost:8000'),
   CHROMA_API_KEY: z.string().optional(),
   CHROMA_COLLECTION: z.string(),
+  CHROMA_API_BASE_PATH: z.string().optional(),
   CHROMA_MIN_DOC_LENGTH: z.coerce.number().int().positive().default(200),
   CHROMA_PAGE_SIZE: z.coerce.number().int().positive().max(100).default(10),
   CHROMA_MAX_PAGES: z.coerce.number().int().positive().max(100).default(5),
@@ -28,6 +29,7 @@ export const appConfig = {
     baseUrl: env.CHROMA_API_BASE_URL,
     apiKey: env.CHROMA_API_KEY,
     collection: env.CHROMA_COLLECTION,
+    basePath: env.CHROMA_API_BASE_PATH?.trim() ?? '',
     minDocLength: env.CHROMA_MIN_DOC_LENGTH,
     pageSize: env.CHROMA_PAGE_SIZE,
     maxPages: env.CHROMA_MAX_PAGES

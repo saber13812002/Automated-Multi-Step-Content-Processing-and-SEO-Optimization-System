@@ -27,7 +27,8 @@ TypeScript Express service that accepts free-text phrases, checks Redis for cach
 3. Required keys:
    - `CHROMA_COLLECTION`: existing Chroma collection to query.
    - `REDIS_URL`: Redis connection string (defaults to `redis://localhost:6379`).
-   - `CHROMA_API_BASE_URL`: e.g. `http://localhost:8000` when using the provided Docker stack (the service automatically targets `/api/v2` routes).
+   - `CHROMA_API_BASE_URL`: e.g. `http://localhost:8000` when using the provided Docker stack.
+   - `CHROMA_API_BASE_PATH`: only set if سرور Chroma مسیر متفاوتی مثل `/api/v2/default` یا `/api/v1/default/databases/default` نیاز دارد (اگر خالی بماند سرویس چند مسیر متداول را به‌صورت خودکار امتحان می‌کند).
    - `DEV_SCRAPE_URL`: URL for a single dev page to experiment with scraping/embedding (no code uses it directly yet, but it is surfaced via configuration for tooling).
 
 ### Install Dependencies
@@ -92,7 +93,7 @@ npm install
     }
   }
   ```
-  > سرویس به‌صورت خودکار مسیر مناسب را بین `/api/v2`, `/api/v1` و `/api` پیدا می‌کند؛ بنابراین حتی اگر سرور Chroma نسخه قدیمی‌تری داشته باشد، این health-check همچنان کار می‌کند.
+  > سرویس به‌صورت خودکار مسیر مناسب را میان `/api/v3`, `/api/v2/default/databases/default`, `/api/v2`, `/api/v1/default/databases/default`, `/api/v1`, `/api` و مسیر خالی پیدا می‌کند؛ در صورت نیاز می‌توانید مقدار دقیق را با `CHROMA_API_BASE_PATH` مشخص کنید.
 
 ### Running Redis with Docker
 1. From `apps/chroma_search_api`:

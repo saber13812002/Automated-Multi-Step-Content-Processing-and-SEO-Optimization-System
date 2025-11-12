@@ -16,7 +16,42 @@ export type ChromaCollectionSummary = {
   metadata?: Record<string, unknown>;
 };
 
-const API_PATH_CANDIDATES = ['/api/v2', '/api/v1', '/api', ''];
+const normalizeBasePath = (path?: string | null) => {
+  if (!path) {
+    return '';
+  }
+  const trimmed = path.trim();
+  if (trimmed === '' || trimmed === '/') {
+    return '';
+  }
+
+  const prefixed = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+  return prefixed.replace(/\/+$/, '');
+};
+
+const configuredBasePath = normalizeBasePath(appConfig.chroma.basePath);
+
+const DEFAULT_API_PATHS = [
+  '/api/v3/default/databases/default',
+  '/api/v3/default',
+  '/api/v3',
+  '/v3',
+  '/api/v2/default/databases/default',
+  '/api/v2/default',
+  '/api/v2',
+  '/v2',
+  '/api/v1/default/databases/default',
+  '/api/v1/default',
+  '/api/v1',
+  '/v1',
+  '/api'
+];
+
+const API_PATH_CANDIDATES = Array.from(
+  new Set([configuredBasePath, ...DEFAULT_API_PATHS.map((path) => normalizeBasePath(path)), ''])
+);
+
+logger.info({ configuredBasePath, apiPathCandidates: API_PATH_CANDIDATES }, 'Chroma API base path candidates');
 
 const httpClient = axios.create({
   baseURL: appConfig.chroma.baseUrl,
@@ -67,7 +102,16 @@ const shouldAttemptFallback = (error: unknown) => {
   }
 
   const status = error.response?.status;
-  return status === 404 || status === 410 || status === 405;
+  return status === 404 || status === 410 || status === 405 || status === 400;
+};
+
+const joinBasePath = (basePath: string, endpoint: string) => {
+  if (!basePath) {
+    return endpoint;
+  }
+
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${basePath}${normalizedEndpoint}`.replace(/\/{2,}/g, '/');
 };
 
 const requestWithFallback = async <T>(
@@ -82,6 +126,9 @@ const requestWithFallback = async <T>(
   for (const basePath of candidates) {
     try {
       const response = await httpClient.request<T>(buildConfig(basePath));
+      if (cachedApiPath !== basePath) {
+        logger.info({ basePath }, 'Selected Chroma API base path');
+      }
       cachedApiPath = basePath;
       return response.data;
     } catch (error) {
@@ -106,7 +153,7 @@ const requestWithFallback = async <T>(
 export const queryChroma = async (phrase: string): Promise<ChromaQueryResponse> => {
   return requestWithFallback<ChromaQueryResponse>((basePath) => ({
     method: 'post',
-    url: `${basePath}/collections/${appConfig.chroma.collection}/query`,
+    url: joinBasePath(basePath, `/collections/${appConfig.chroma.collection}/query`),
     data: {
       query_texts: [phrase],
       n_results: appConfig.chroma.pageSize * appConfig.chroma.maxPages,
@@ -135,7 +182,7 @@ const normalizeCollections = (payload: unknown): ChromaCollectionSummary[] => {
 export const listChromaCollections = async (): Promise<ChromaCollectionSummary[]> => {
   const data = await requestWithFallback<unknown>((basePath) => ({
     method: 'get',
-    url: `${basePath}/collections`
+    url: joinBasePath(basePath, '/collections')
   }));
 
   return normalizeCollections(data);

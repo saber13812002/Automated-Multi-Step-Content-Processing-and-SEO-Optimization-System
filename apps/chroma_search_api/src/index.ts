@@ -4,6 +4,27 @@ import { createApp } from './app';
 import { appConfig } from './config';
 import { logger } from './logger';
 
+logger.info(
+  {
+    environment: appConfig.nodeEnv,
+    port: appConfig.port,
+    redis: {
+      url: appConfig.redisUrl,
+      ttlSeconds: appConfig.redisTtlSeconds
+    },
+    chroma: {
+      baseUrl: appConfig.chroma.baseUrl,
+      basePath: appConfig.chroma.basePath,
+      collection: appConfig.chroma.collection,
+      pageSize: appConfig.chroma.pageSize,
+      maxPages: appConfig.chroma.maxPages,
+      minDocLength: appConfig.chroma.minDocLength,
+      apiKeyConfigured: Boolean(appConfig.chroma.apiKey)
+    }
+  },
+  'Loaded application configuration'
+);
+
 const app = createApp();
 const server = createServer(app);
 
