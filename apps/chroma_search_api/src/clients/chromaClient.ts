@@ -10,6 +10,12 @@ export type ChromaQueryResponse = {
   distances?: number[][];
 };
 
+export type ChromaCollectionSummary = {
+  id: string;
+  name: string;
+  metadata?: Record<string, unknown>;
+};
+
 const API_VERSION_PATH = '/api/v2';
 
 const httpClient = axios.create({
@@ -61,4 +67,24 @@ export const queryChroma = async (phrase: string): Promise<ChromaQueryResponse> 
   });
 
   return response.data as ChromaQueryResponse;
+};
+
+export const listChromaCollections = async (): Promise<ChromaCollectionSummary[]> => {
+  const response = await httpClient.get(`${API_VERSION_PATH}/collections`);
+  const data = response.data as { collections?: unknown } | unknown[];
+
+  const collections = Array.isArray((data as { collections?: unknown[] }).collections)
+    ? ((data as { collections?: unknown[] }).collections as Record<string, unknown>[])
+    : Array.isArray(data)
+      ? (data as Record<string, unknown>[])
+      : [];
+
+  return collections.map((collection) => ({
+    id: String(collection.id ?? ''),
+    name: String(collection.name ?? ''),
+    metadata:
+      collection.metadata && typeof collection.metadata === 'object'
+        ? (collection.metadata as Record<string, unknown>)
+        : undefined
+  }));
 };

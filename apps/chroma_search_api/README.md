@@ -48,29 +48,50 @@ npm install
   ```
 
 ### API Usage
-```bash
-curl "http://localhost:4000/search?phrase=hello%20world&page=1"
-```
-Response schema:
-```json
-{
-  "items": [
-    {
-      "id": "doc-1",
-      "document": "…",
-      "metadata": { "source": "…" },
-      "distance": 0.12
+- `GET /search`: فراخوانی جستجو
+  ```bash
+  curl "http://localhost:4000/search?phrase=hello%20world&page=1"
+  ```
+  پاسخ نمونه:
+  ```json
+  {
+    "items": [
+      {
+        "id": "doc-1",
+        "document": "…",
+        "metadata": { "source": "…" },
+        "distance": 0.12
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "pageSize": 10,
+      "totalPages": 3,
+      "totalResults": 23
+    },
+    "source": "cache"
+  }
+  ```
+
+- `GET /search/health`: وضعیت Redis و ChromaDB و فهرست کالکشن‌ها
+  ```bash
+  curl "http://localhost:4000/search/health"
+  ```
+  خروجی نمونه:
+  ```json
+  {
+    "status": "ok",
+    "timestamp": "2025-01-01T12:00:00.000Z",
+    "redis": { "status": "ok" },
+    "chroma": {
+      "status": "ok",
+      "collectionCount": 2,
+      "collections": [
+        { "id": "book_pages", "name": "book_pages" }
+      ]
     }
-  ],
-  "pagination": {
-    "page": 1,
-    "pageSize": 10,
-    "totalPages": 3,
-    "totalResults": 23
-  },
-  "source": "cache"
-}
-```
+  }
+  ```
 
 ### Running Redis with Docker
 1. From `apps/chroma_search_api`:
