@@ -15,7 +15,7 @@
     "types": ["node", "jest"],
     "sourceMap": true
   },
-  "include": ["src", "jest.config.ts", "__tests__"],
-  "exclude": ["dist", "node_modules"]
+  "include": ["src"],
+  "exclude": ["dist", "node_modules", "__tests__", "jest.config.ts"]
 }
 

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { type AxiosRequestConfig } from 'axios';
 
 import { appConfig } from '../config';
 import { logger } from '../logger';
@@ -16,8 +16,7 @@ export type ChromaCollectionSummary = {
   metadata?: Record<string, unknown>;
 };
 
-const API_VERSION_PATH = '/api/v2';
-const LEGACY_API_VERSION_PATH = '/api/v1';
+const API_PATH_CANDIDATES = ['/api/v2', '/api/v1', '/api'];
 
 const httpClient = axios.create({
   baseURL: appConfig.chroma.baseUrl,
@@ -60,14 +59,60 @@ httpClient.interceptors.response.use(
   }
 );
 
-export const queryChroma = async (phrase: string): Promise<ChromaQueryResponse> => {
-  const response = await httpClient.post(`${API_VERSION_PATH}/collections/${appConfig.chroma.collection}/query`, {
-    query_texts: [phrase],
-    n_results: appConfig.chroma.pageSize * appConfig.chroma.maxPages,
-    include: ['documents', 'metadatas', 'distances']
-  });
+let cachedApiPath: string | null = null;
 
-  return response.data as ChromaQueryResponse;
+const shouldAttemptFallback = (error: unknown) => {
+  if (!axios.isAxiosError(error)) {
+    return false;
+  }
+
+  const status = error.response?.status;
+  return status === 404 || status === 410 || status === 405;
+};
+
+const requestWithFallback = async <T>(
+  buildConfig: (basePath: string) => AxiosRequestConfig
+): Promise<T> => {
+  const candidates = cachedApiPath
+    ? [cachedApiPath, ...API_PATH_CANDIDATES.filter((path) => path !== cachedApiPath)]
+    : API_PATH_CANDIDATES;
+
+  let lastError: unknown;
+
+  for (const basePath of candidates) {
+    try {
+      const response = await httpClient.request<T>(buildConfig(basePath));
+      cachedApiPath = basePath;
+      return response.data;
+    } catch (error) {
+      lastError = error;
+
+      if (cachedApiPath === basePath && shouldAttemptFallback(error)) {
+        cachedApiPath = null;
+        continue;
+      }
+
+      if (shouldAttemptFallback(error)) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw lastError ?? new Error('Unable to reach Chroma API');
+};
+
+export const queryChroma = async (phrase: string): Promise<ChromaQueryResponse> => {
+  return requestWithFallback<ChromaQueryResponse>((basePath) => ({
+    method: 'post',
+    url: `${basePath}/collections/${appConfig.chroma.collection}/query`,
+    data: {
+      query_texts: [phrase],
+      n_results: appConfig.chroma.pageSize * appConfig.chroma.maxPages,
+      include: ['documents', 'metadatas', 'distances']
+    }
+  }));
 };
 
 const normalizeCollections = (payload: unknown): ChromaCollectionSummary[] => {
@@ -87,20 +132,11 @@ const normalizeCollections = (payload: unknown): ChromaCollectionSummary[] => {
   }));
 };
 
-const fetchCollections = async (path: string) => {
-  const response = await httpClient.get(`${path}/collections`);
-  return response.data;
-};
-
 export const listChromaCollections = async (): Promise<ChromaCollectionSummary[]> => {
-  try {
-    const data = await fetchCollections(API_VERSION_PATH);
-    return normalizeCollections(data);
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response?.status === 404) {
-      const legacyData = await fetchCollections(LEGACY_API_VERSION_PATH);
-      return normalizeCollections(legacyData);
-    }
-    throw error;
-  }
+  const data = await requestWithFallback<unknown>((basePath) => ({
+    method: 'get',
+    url: `${basePath}/collections`
+  }));
+
+  return normalizeCollections(data);
 };
