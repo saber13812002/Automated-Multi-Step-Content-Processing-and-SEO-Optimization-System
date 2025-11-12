@@ -89,3 +89,56 @@ python verify_chroma_export.py \
   - مقدار پیش‌فرض `openai` با مدل `text-embedding-3-small` برای هر سگمنت یک بردار ۱۵۳۶ بعدی تولید می‌کند و آن را به کالکشن اضافه می‌نماید؛ این حالت برای وقتی مناسب است که می‌خواهید همه‌چیز سمت اسکریپت انجام شود.
   - اگر گزینه‌ی `--embedding-provider none` را انتخاب کنید، فقط متن و متادیتا ذخیره می‌شوند و باید در مراحل بعدی (مثلاً روی سرور Chroma یا سرویس دیگر) امبدینگ ساخته شود. در غیر این صورت جست‌وجوی برداری نتیجه‌ای نخواهد داشت.
   - هنگام جست‌وجو (چه با `verify_chroma_export.py` و چه با API‌های دیگر) همان مدل باید برای تولید امبدینگ سؤال استفاده شود؛ چون Chroma بردار کوئری را با بردارهای ذخیره‌شده مقایسه می‌کند.
+
+## سرویس وب جستجوی معنایی
+
+یک سرویس FastAPI در مسیر `web_service/` اضافه شده تا کوئری کاربر را گرفته، با همان مدل `text-embedding-3-small` امبدینگ کند و روی ChromaDB جستجو انجام دهد.
+
+### اجرای محلی
+
+```bash
+cd export-sql-chromadb
+python -m venv .venv
+.venv\Scripts\activate  # یا source .venv/bin/activate
+pip install -r web_service/requirements.txt
+uvicorn web_service.app:app --reload --host 0.0.0.0 --port 8080
+```
+
+سرویس از همان `.env` استفاده می‌کند. مسیرها:
+
+- `POST /search` ورودی:
+
+```json
+{
+  "query": "آموزش عقاید چیست؟",
+  "top_k": 5
+}
+```
+
+خروجی شامل `id`, `distance`, `score`, `document`, `metadata` و اطلاعات مدل است.
+
+- `GET /health` وضعیت ChromaDB، Redis، و آمار کالکشن را بازمی‌گرداند.
+
+### متغیرهای محیطی مرتبط با سرویس وب
+
+- `APP_HOST` و `APP_PORT` برای کنترل آدرس و پورت سرویس (پیش‌فرض: `0.0.0.0:8080`)
+- `REDIS_URL` یا ترکیب `REDIS_HOST`, `REDIS_PORT`, `REDIS_DB`, `REDIS_PASSWORD`
+- سایر متغیرها همان مقادیر مورد استفاده در اسکریپت‌های صادرات و اعتبارسنجی (`CHROMA_*`, `OPENAI_API_KEY`, `EMBEDDING_MODEL`, ...)
+
+### Docker
+
+```bash
+cd export-sql-chromadb
+docker build -t chroma-search-api .
+docker run --env-file .env -p 8080:8080 chroma-search-api
+```
+
+### Docker Compose
+
+```bash
+cd export-sql-chromadb
+docker compose up --build
+```
+
+سرویس با کانتینر Redis بالا می‌آید و تمام متغیرهای محیطی از طریق `.env` یا متغیرهای محیطی سیستم تزریق‌پذیر هستند. Healthcheck داخلی وضعیت `/health` را پایش می‌کند.
+در فایل `docker-compose.yml` یک سرویس اختیاری `chromadb` نیز تعریف شده تا در محیط‌های توسعه یا تست بتوانید ChromaDB را به‌صورت کانتینری اجرا کنید. در صورت استفاده از سرور خارجی، می‌توانید این سرویس را حذف یا غیرفعال کنید.

@@ -1,18 +1,60 @@
 version: "3.9"
 
 services:
+  chroma-search-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      APP_HOST: 0.0.0.0
+      APP_PORT: ${APP_PORT:-8080}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
   chromadb:
     image: chromadb/chroma:latest
-    container_name: chromadb
     restart: unless-stopped
     environment:
-      - ANONYMIZED_TELEMETRY=False
-      - CHROMA_SERVER_AUTH_CREDENTIALS=${CHROMA_API_KEY:-}
-      - CHROMA_SERVER_AUTH_PROVIDER=chromadb.auth.token.TokenAuthServerProvider
+      ANONYMIZED_TELEMETRY: "False"
+      CHROMA_SERVER_AUTH_CREDENTIALS: ${CHROMA_API_KEY:-}
+      CHROMA_SERVER_AUTH_PROVIDER: chromadb.auth.token.TokenAuthServerProvider
     ports:
       - "8000:8000"
     volumes:
-      - chroma_data:/chroma/app/data
+      - chroma-data:/chroma/app/data
     command: >
       --host 0.0.0.0
       --port 8000
@@ -23,7 +65,8 @@ services:
       interval: 30s
       timeout: 5s
       retries: 5
+      start_period: 15s
 
 volumes:
-  chroma_data:
-
+  redis-data:
+  chroma-data:
