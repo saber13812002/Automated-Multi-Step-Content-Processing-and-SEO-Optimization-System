@@ -16,7 +16,7 @@ export type ChromaCollectionSummary = {
   metadata?: Record<string, unknown>;
 };
 
-const API_PATH_CANDIDATES = ['/api/v2', '/api/v1', '/api'];
+const API_PATH_CANDIDATES = ['/api/v2', '/api/v1', '/api', ''];
 
 const httpClient = axios.create({
   baseURL: appConfig.chroma.baseUrl,
