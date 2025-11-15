@@ -689,7 +689,7 @@
                                     const persianLabel = metadataLabels[key] || key;
                                     const tooltip = metadataTooltips[key] || '';
                                     
-                                    // For source_link, create clickable link
+                                    // For source_link, create clickable link with shortened display
                                     if (key === 'source_link' && value) {
                                         // Clean URL: remove surrounding quotes if any
                                         let url = String(value).trim();
@@ -701,8 +701,37 @@
                                         // Ensure URL is absolute (starts with http:// or https://)
                                         const isAbsolute = /^https?:\/\//i.test(url);
                                         // Use raw URL in href (no escaping needed for valid URLs)
-                                        // But escape for display text to prevent XSS
                                         const hrefAttr = isAbsolute ? url : `#`;
+                                        
+                                        // Extract short display text from URL
+                                        // Example: https://mesbahyazdi.ir/node/1652#p121 -> 1652#p121
+                                        let displayText = url;
+                                        try {
+                                            const urlObj = new URL(url);
+                                            // Extract node ID and page anchor (e.g., node/1652#p121 -> 1652#p121)
+                                            const pathMatch = urlObj.pathname.match(/\/node\/(\d+)/);
+                                            const hash = urlObj.hash; // e.g., #p121
+                                            if (pathMatch && pathMatch[1]) {
+                                                displayText = pathMatch[1] + hash; // e.g., "1652#p121"
+                                            } else {
+                                                // Fallback: show last part of path + hash
+                                                const pathParts = urlObj.pathname.split('/').filter(p => p);
+                                                if (pathParts.length > 0) {
+                                                    displayText = pathParts[pathParts.length - 1] + hash;
+                                                }
+                                            }
+                                        } catch (e) {
+                                            // If URL parsing fails, try regex
+                                            const match = url.match(/(?:node\/)?(\d+)(#p\d+)?$/i);
+                                            if (match) {
+                                                displayText = match[1] + (match[2] || '');
+                                            } else {
+                                                // Final fallback: show just the last meaningful part
+                                                const parts = url.split('/');
+                                                displayText = parts[parts.length - 1] || url;
+                                            }
+                                        }
+                                        
                                         const infoIconHtml = tooltip ? `
                                             <span class="metadata-info-icon">ℹ
                                                 <span class="metadata-info-tooltip">${escapeHtml(tooltip)}</span>
@@ -715,7 +744,7 @@
                                             ${infoIconHtml}
                                         </span>
                                         <span class="metadata-value">
-                                            <a href="${hrefAttr}" target="_blank" rel="noopener noreferrer" class="metadata-link">${escapeHtml(url)}</a>
+                                            <a href="${hrefAttr}" target="_blank" rel="noopener noreferrer" class="metadata-link" title="${escapeHtml(url)}">${escapeHtml(displayText)}</a>
                                         </span>
                                     </div>
                                 `;
