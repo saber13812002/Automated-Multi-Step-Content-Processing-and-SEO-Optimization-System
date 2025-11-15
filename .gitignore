@@ -6,3 +6,4 @@ media/*/*.wav
 /summerized/venv/*
 *.mpg
 export-sql-chromadb/.env
+/export-sql-chromadb/web_service/.env
