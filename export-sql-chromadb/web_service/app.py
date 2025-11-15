@@ -205,27 +205,45 @@ async def search_documents(
     embedder = app_state["embedder"]
 
     start = time.perf_counter()
-    try:
-        embeddings = await anyio.to_thread.run_sync(embedder.embed, [payload.query])
-    except Exception as exc:  # pragma: no cover - network errors
-        logger.exception("Embedding generation failed.")
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Failed to generate embeddings for the query.",
-        ) from exc
-
+    
+    # Try query_texts first (if collection has embedding function)
+    # This is the same approach as verify_chroma_export.py
     try:
         results = await anyio.to_thread.run_sync(
             collection.query,
-            query_embeddings=embeddings,
+            query_texts=[payload.query],
             n_results=payload.top_k,
             include=["documents", "metadatas", "distances"],
         )
+        logger.debug("Used query_texts (collection has embedding function)")
+    except (ValueError, TypeError, AttributeError) as text_query_exc:
+        # If query_texts fails, generate embeddings and use query_embeddings
+        logger.debug("query_texts failed, generating embeddings and using query_embeddings: %s", str(text_query_exc))
+        try:
+            embeddings = await anyio.to_thread.run_sync(embedder.embed, [payload.query])
+            if not embeddings or len(embeddings) == 0:
+                raise ValueError("Failed to generate embeddings for query")
+            
+            results = await anyio.to_thread.run_sync(
+                collection.query,
+                query_embeddings=embeddings,
+                n_results=payload.top_k,
+                include=["documents", "metadatas", "distances"],
+            )
+            logger.debug("Used query_embeddings")
+        except Exception as embed_exc:  # pragma: no cover - network errors
+            error_msg = f"Failed to query ChromaDB: {str(embed_exc)}"
+            logger.exception("ChromaDB query failed after trying both methods.", extra={"error": str(embed_exc), "query": payload.query})
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=error_msg,
+            ) from embed_exc
     except Exception as exc:  # pragma: no cover - network errors
-        logger.exception("ChromaDB query failed.")
+        error_msg = f"ChromaDB query failed: {str(exc)}"
+        logger.exception("ChromaDB query failed.", extra={"error": str(exc), "query": payload.query})
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="ChromaDB query failed.",
+            detail=error_msg,
         ) from exc
 
     took_ms = (time.perf_counter() - start) * 1000.0
