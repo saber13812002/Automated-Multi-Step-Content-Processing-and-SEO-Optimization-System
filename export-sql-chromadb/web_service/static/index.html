@@ -379,7 +379,8 @@
                 const response = await fetch(`${API_BASE_URL}/search`, {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Accept': 'application/json; charset=utf-8',
                     },
                     body: JSON.stringify({
                         query: query,
@@ -393,6 +394,7 @@
                     throw new Error(errorData.detail || 'خطا در جستجو');
                 }
 
+                // Ensure UTF-8 encoding when parsing JSON
                 const data = await response.json();
                 displayResults(data);
                 
@@ -468,10 +470,15 @@
 
         async function loadHistory() {
             try {
-                const response = await fetch(`${API_BASE_URL}/history?limit=10`);
+                const response = await fetch(`${API_BASE_URL}/history?limit=10`, {
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8',
+                    }
+                });
                 if (!response.ok) {
                     throw new Error('خطا در بارگذاری تاریخچه');
                 }
+                // Ensure UTF-8 encoding when parsing JSON
                 const data = await response.json();
                 displayHistory(data);
             } catch (error) {

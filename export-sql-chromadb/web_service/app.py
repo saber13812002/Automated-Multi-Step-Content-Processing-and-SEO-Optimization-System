@@ -9,8 +9,9 @@ from typing import Any, Dict, List, Optional
 import anyio
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import JSONResponse as StarletteJSONResponse
 
 from .clients import (
     get_chroma_client,
@@ -153,6 +154,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Chroma Search Service", version="1.0.0", lifespan=lifespan)
+
+# Override default JSONResponse to ensure UTF-8 encoding
+class UTF8JSONResponse(StarletteJSONResponse):
+    media_type = "application/json; charset=utf-8"
+
+app.default_response_class = UTF8JSONResponse
 
 # Add CORS middleware for HTML UI
 app.add_middleware(
@@ -432,7 +439,7 @@ async def log_requests(request: Request, call_next):
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled exception", extra={"path": request.url.path})
-    return JSONResponse(
+    return UTF8JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Internal server error"},
     )

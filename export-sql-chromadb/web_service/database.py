@@ -25,6 +25,8 @@ def get_db_connection():
     """Get database connection with proper cleanup."""
     conn = sqlite3.connect(str(_DB_PATH), check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    # Ensure UTF-8 encoding for proper Persian text storage
+    conn.execute("PRAGMA encoding='UTF-8'")
     try:
         yield conn
         conn.commit()
