@@ -211,13 +211,28 @@ sudo apt install python3-pip python3-venv
 
 **مشکل:**
 ```
-Collection 'book_pages_allame' not found.
+RuntimeError: Chroma collection 'book_pages_allame' not found. 
+Available collections: book_pages, other_collection
 ```
 
 **راه‌حل:**
-- مطمئن شوید که کالکشن با نام صحیح در ChromaDB وجود دارد.
-- نام کالکشن را در `.env` با مقدار `CHROMA_COLLECTION` بررسی کنید.
-- از اسکریپت `export-sql-backup-to-chromadb.py` برای ایجاد کالکشن استفاده کنید.
+1. **بررسی کالکشن‌های موجود:** پیام خطا لیست کالکشن‌های موجود را نشان می‌دهد. نام درست را در `.env` تنظیم کنید:
+   ```bash
+   # در .env
+   CHROMA_COLLECTION=book_pages  # یا نام صحیح دیگری
+   ```
+
+2. **ایجاد کالکشن:** اگر کالکشنی وجود ندارد، از اسکریپت exporter استفاده کنید:
+   ```bash
+   python export-sql-backup-to-chromadb.py \
+     --collection book_pages_allame \
+     --host 192.168.1.68 \
+     --port 8000 \
+     --embedding-provider openai \
+     --sql-path book_pages.sql
+   ```
+
+3. **بررسی دستی کالکشن‌ها:** می‌توانید با ChromaDB client یا API به صورت مستقیم لیست کالکشن‌ها را ببینید.
 
 ### بررسی لاگ‌ها
 

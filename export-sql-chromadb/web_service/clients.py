@@ -97,10 +97,25 @@ def get_collection(settings: Settings | None = None):
         collection = client.get_collection(cfg.chroma_collection)
         logger.info("Connected to Chroma collection '%s'.", cfg.chroma_collection)
     except NotFoundError as exc:
-        logger.error("Chroma collection '%s' not found.", cfg.chroma_collection)
-        raise RuntimeError(
-            f"Chroma collection '{cfg.chroma_collection}' not found. Ensure the exporter has populated it."
-        ) from exc
+        # List available collections to help user debug
+        try:
+            available_collections = client.list_collections()
+            collection_names = [col.name for col in available_collections] if available_collections else []
+            if collection_names:
+                available_msg = f"Available collections: {', '.join(collection_names)}"
+            else:
+                available_msg = "No collections found in ChromaDB. Run the exporter first."
+        except Exception as list_exc:
+            logger.warning("Failed to list collections for error message: %s", list_exc)
+            available_msg = "Could not list available collections."
+
+        error_msg = (
+            f"Chroma collection '{cfg.chroma_collection}' not found. "
+            f"{available_msg} "
+            f"Update CHROMA_COLLECTION in your .env file or run the exporter to create the collection."
+        )
+        logger.error(error_msg)
+        raise RuntimeError(error_msg) from exc
     return collection
 
 
