@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import os
+from pathlib import Path
 from typing import List, Sequence
 
 import chromadb
@@ -54,17 +56,23 @@ class QueryEmbedder:
 
 
 def get_chroma_client(settings: Settings | None = None):
-    """Create or return ChromaDB client. Not cached to avoid unhashable Settings object."""
+    """Create or return ChromaDB client. Not cached to avoid unhashable Settings object.
+    
+    Uses the same logic as verify_chroma_export.py for consistency.
+    """
     cfg = settings or get_settings()
-    sdk_settings = ChromaSettings(
-        anonymized_telemetry=cfg.chroma_anonymized_telemetry,
-    )
+    
+    # Use the same telemetry logic as verify_chroma_export.py
+    telemetry = os.getenv("CHROMA_ANONYMIZED_TELEMETRY", "False")
+    sdk_settings = ChromaSettings(anonymized_telemetry=telemetry.lower() in ("true", "1", "yes"))
 
     if cfg.chroma_persist_directory:
+        persist_path = Path(cfg.chroma_persist_directory)
+        persist_path.mkdir(parents=True, exist_ok=True)
         logger.info(
             "Connecting to Chroma persistent client at %s", cfg.chroma_persist_directory
         )
-        client = chromadb.PersistentClient(path=cfg.chroma_persist_directory, settings=sdk_settings)
+        client = chromadb.PersistentClient(path=str(persist_path), settings=sdk_settings)
     else:
         logger.info(
             "Connecting to Chroma HTTP client at %s:%s (ssl=%s)",
@@ -72,6 +80,7 @@ def get_chroma_client(settings: Settings | None = None):
             cfg.chroma_port,
             cfg.chroma_ssl,
         )
+        # Use the same header logic as verify_chroma_export.py
         headers = {"Authorization": cfg.chroma_api_key} if cfg.chroma_api_key else None
         client = chromadb.HttpClient(
             host=cfg.chroma_host,

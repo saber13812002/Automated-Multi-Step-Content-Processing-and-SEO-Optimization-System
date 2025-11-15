@@ -6,6 +6,13 @@ from typing import Optional, Sequence
 import chromadb
 from chromadb.config import Settings
 from chromadb.errors import NotFoundError
+from dotenv import load_dotenv
+
+# Load .env file for consistency with web_service
+_PROJECT_ROOT = Path(__file__).resolve().parent
+_DEFAULT_ENV_PATH = _PROJECT_ROOT / ".env"
+if _DEFAULT_ENV_PATH.exists():
+    load_dotenv(dotenv_path=_DEFAULT_ENV_PATH, override=False)
 
 
 def create_client(args: argparse.Namespace):
