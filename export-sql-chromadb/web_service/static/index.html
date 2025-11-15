@@ -232,24 +232,110 @@
         .result-metadata {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
+            gap: 15px;
             margin-top: 15px;
+        }
+
+        @media (max-width: 768px) {
+            .result-metadata {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
         }
 
         .metadata-item {
             display: flex;
             flex-direction: column;
+            position: relative;
         }
 
         .metadata-label {
             font-size: 0.85rem;
             color: #666;
             margin-bottom: 3px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .metadata-label-text {
+            flex: 1;
         }
 
         .metadata-value {
             font-weight: 600;
             color: #333;
+        }
+
+        .metadata-info-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: rgba(102, 126, 234, 0.15);
+            color: #667eea;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: help;
+            position: relative;
+            flex-shrink: 0;
+            transition: background 0.2s;
+        }
+
+        .metadata-info-icon:hover {
+            background: rgba(102, 126, 234, 0.3);
+        }
+
+        .metadata-info-tooltip {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            right: 0;
+            padding: 10px 14px;
+            background: #2d3748;
+            color: white;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease-in-out;
+            max-width: 260px;
+            min-width: 200px;
+            white-space: normal;
+            text-align: right;
+            line-height: 1.6;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .metadata-info-tooltip {
+                right: auto;
+                left: 0;
+                max-width: calc(100vw - 40px);
+                min-width: auto;
+            }
+        }
+
+        .metadata-info-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            right: 15px;
+            border: 6px solid transparent;
+            border-top-color: #2d3748;
+        }
+
+        @media (max-width: 768px) {
+            .metadata-info-tooltip::after {
+                right: auto;
+                left: 15px;
+            }
+        }
+
+        .metadata-info-icon:hover .metadata-info-tooltip {
+            opacity: 1;
         }
 
         .metadata-link {
@@ -433,6 +519,42 @@
     <script>
         const API_BASE_URL = window.location.origin;
         
+        // Persian translations for metadata fields
+        const metadataLabels = {
+            'book_title': 'عنوان کتاب',
+            'book_id': 'شناسه کتاب',
+            'paragraph_index': 'شماره پاراگراف',
+            'page_id': 'شماره صفحه',
+            'section_id': 'شناسه بخش',
+            'segment_index': 'شماره قطعه',
+            'source_link': 'لینک منبع',
+            'section_title': 'عنوان بخش',
+            'error': 'خطا',
+            'segment_end': 'پایان قطعه',
+            'segment_length': 'طول قطعه',
+            'segment_start': 'شروع قطعه',
+            'has_error': 'دارای خطا',
+            'record_id': 'شناسه رکورد'
+        };
+
+        // Tooltip descriptions for metadata fields
+        const metadataTooltips = {
+            'book_title': 'عنوان کتابی که این بخش از آن استخراج شده است.',
+            'book_id': 'شناسه یکتای کتاب در پایگاه داده.',
+            'paragraph_index': 'شماره پاراگراف در صفحه (شروع از ۰).',
+            'page_id': 'شماره صفحه در کتاب که این بخش از آن آمده است.',
+            'section_id': 'شناسه یکتای بخش در پایگاه داده.',
+            'segment_index': 'شماره قطعه در پاراگراف (شروع از ۰).',
+            'source_link': 'لینک مستقیم به صفحه اصلی در وب‌سایت منبع.',
+            'section_title': 'عنوان بخش که این قطعه به آن تعلق دارد.',
+            'error': 'پیام خطا در صورت وجود مشکل در پردازش این رکورد.',
+            'segment_end': 'موقعیت پایان قطعه در پاراگراف (بر اساس تعداد کاراکتر).',
+            'segment_length': 'طول قطعه به تعداد کاراکتر.',
+            'segment_start': 'موقعیت شروع قطعه در پاراگراف (بر اساس تعداد کاراکتر).',
+            'has_error': 'نشان می‌دهد که آیا این رکورد در هنگام پردازش خطایی داشته است یا خیر.',
+            'record_id': 'شناسه یکتای رکورد در پایگاه داده اصلی.'
+        };
+        
         const searchForm = document.getElementById('searchForm');
         const searchButton = document.getElementById('searchButton');
         const errorContainer = document.getElementById('errorContainer');
@@ -563,6 +685,10 @@
                         ${result.metadata && Object.keys(result.metadata).length > 0 ? `
                             <div class="result-metadata">
                                 ${Object.entries(result.metadata).map(([key, value]) => {
+                                    // Get Persian label or fallback to original key
+                                    const persianLabel = metadataLabels[key] || key;
+                                    const tooltip = metadataTooltips[key] || '';
+                                    
                                     // For source_link, create clickable link
                                     if (key === 'source_link' && value) {
                                         // Clean URL: remove surrounding quotes if any
@@ -577,19 +703,53 @@
                                         // Use raw URL in href (no escaping needed for valid URLs)
                                         // But escape for display text to prevent XSS
                                         const hrefAttr = isAbsolute ? url : `#`;
+                                        const infoIconHtml = tooltip ? `
+                                            <span class="metadata-info-icon">ℹ
+                                                <span class="metadata-info-tooltip">${escapeHtml(tooltip)}</span>
+                                            </span>
+                                        ` : '';
                                         return `
                                     <div class="metadata-item">
-                                        <span class="metadata-label">${escapeHtml(key)}:</span>
+                                        <span class="metadata-label">
+                                            <span class="metadata-label-text">${escapeHtml(persianLabel)}:</span>
+                                            ${infoIconHtml}
+                                        </span>
                                         <span class="metadata-value">
                                             <a href="${hrefAttr}" target="_blank" rel="noopener noreferrer" class="metadata-link">${escapeHtml(url)}</a>
                                         </span>
                                     </div>
                                 `;
                                     }
-                                    // For other metadata, just display as text
+                                    // For boolean values, display as Persian
+                                    if (key === 'has_error' && typeof value === 'boolean') {
+                                        const boolValue = value ? 'بله' : 'خیر';
+                                        const infoIconHtml = tooltip ? `
+                                            <span class="metadata-info-icon">ℹ
+                                                <span class="metadata-info-tooltip">${escapeHtml(tooltip)}</span>
+                                            </span>
+                                        ` : '';
+                                        return `
+                                    <div class="metadata-item">
+                                        <span class="metadata-label">
+                                            <span class="metadata-label-text">${escapeHtml(persianLabel)}:</span>
+                                            ${infoIconHtml}
+                                        </span>
+                                        <span class="metadata-value">${escapeHtml(boolValue)}</span>
+                                    </div>
+                                `;
+                                    }
+                                    // For other metadata, display as text
+                                    const infoIconHtml = tooltip ? `
+                                        <span class="metadata-info-icon">ℹ
+                                            <span class="metadata-info-tooltip">${escapeHtml(tooltip)}</span>
+                                        </span>
+                                    ` : '';
                                     return `
                                     <div class="metadata-item">
-                                        <span class="metadata-label">${escapeHtml(key)}:</span>
+                                        <span class="metadata-label">
+                                            <span class="metadata-label-text">${escapeHtml(persianLabel)}:</span>
+                                            ${infoIconHtml}
+                                        </span>
                                         <span class="metadata-value">${escapeHtml(String(value))}</span>
                                     </div>
                                 `;
