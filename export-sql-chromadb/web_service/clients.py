@@ -13,6 +13,7 @@ except ImportError:  # pragma: no cover - compatibility with newer Chroma releas
     embedding_functions = None  # type: ignore
 
 from redis import Redis
+from redis.exceptions import ConnectionError as RedisConnectionError
 
 from .config import Settings, get_settings
 
@@ -126,11 +127,129 @@ def get_redis_client(settings: Settings | None = None) -> Redis:
     return Redis.from_url(cfg.redis_dsn, decode_responses=True)
 
 
+def validate_chroma_connection(settings: Settings | None = None) -> tuple[bool, str]:
+    """
+    Validate ChromaDB connection and collection availability.
+    Returns (is_valid, error_message).
+    """
+    cfg = settings or get_settings()
+    
+    try:
+        logger.info("🔍 Validating ChromaDB connection at %s:%s", cfg.chroma_host, cfg.chroma_port)
+        client = get_chroma_client(cfg)
+        
+        # Check heartbeat
+        try:
+            heartbeat = client.heartbeat()
+            logger.info("✅ ChromaDB heartbeat successful: %s", heartbeat)
+        except Exception as exc:
+            error_msg = (
+                f"❌ ChromaDB server is not responding at {cfg.chroma_host}:{cfg.chroma_port}. "
+                f"Check if ChromaDB is running. Error: {exc}"
+            )
+            logger.error(error_msg)
+            return False, error_msg
+        
+        # Check if collection exists
+        try:
+            collection = client.get_collection(cfg.chroma_collection)
+            count = collection.count()
+            logger.info("✅ Collection '%s' found with %d documents", cfg.chroma_collection, count)
+            return True, ""
+        except NotFoundError:
+            # List available collections
+            try:
+                available_collections = client.list_collections()
+                collection_names = [col.name for col in available_collections] if available_collections else []
+                if collection_names:
+                    available_msg = f"Available collections: {', '.join(collection_names)}"
+                else:
+                    available_msg = "No collections found in ChromaDB. Run the exporter first."
+            except Exception as list_exc:
+                logger.warning("Failed to list collections: %s", list_exc)
+                available_msg = "Could not list available collections."
+            
+            error_msg = (
+                f"❌ Collection '{cfg.chroma_collection}' not found in ChromaDB. "
+                f"{available_msg} "
+                f"Please update CHROMA_COLLECTION in your .env file or run the exporter to create it."
+            )
+            logger.error(error_msg)
+            return False, error_msg
+        
+    except Exception as exc:
+        error_msg = (
+            f"❌ Failed to connect to ChromaDB at {cfg.chroma_host}:{cfg.chroma_port}. "
+            f"Check network connectivity and ChromaDB server status. Error: {exc}"
+        )
+        logger.error(error_msg)
+        return False, error_msg
+
+
+def validate_redis_connection(settings: Settings | None = None) -> tuple[bool, str]:
+    """
+    Validate Redis connection.
+    Returns (is_valid, error_message).
+    """
+    cfg = settings or get_settings()
+    
+    try:
+        logger.info("🔍 Validating Redis connection at %s", cfg.redis_dsn)
+        redis_client = get_redis_client(cfg)
+        pong = redis_client.ping()
+        if pong:
+            logger.info("✅ Redis connection successful")
+            return True, ""
+        else:
+            error_msg = "❌ Redis ping returned unexpected response"
+            logger.error(error_msg)
+            return False, error_msg
+    except RedisConnectionError as exc:
+        error_msg = (
+            f"❌ Cannot connect to Redis at {cfg.redis_dsn}. "
+            f"Check if Redis is running and the connection details are correct. Error: {exc}"
+        )
+        logger.error(error_msg)
+        return False, error_msg
+    except Exception as exc:
+        error_msg = f"❌ Redis connection error: {exc}"
+        logger.error(error_msg)
+        return False, error_msg
+
+
+def validate_embedder_config(settings: Settings | None = None) -> tuple[bool, str]:
+    """
+    Validate embedding provider configuration.
+    Returns (is_valid, error_message).
+    """
+    cfg = settings or get_settings()
+    
+    if cfg.embedding_provider != "openai":
+        error_msg = f"❌ Unsupported embedding provider: {cfg.embedding_provider}"
+        logger.error(error_msg)
+        return False, error_msg
+    
+    if not cfg.openai_api_key:
+        error_msg = (
+            "❌ OPENAI_API_KEY is not set. "
+            "Please set OPENAI_API_KEY in your .env file to enable embedding generation."
+        )
+        logger.error(error_msg)
+        return False, error_msg
+    
+    logger.info("✅ Embedding configuration valid (provider: %s, model: %s)", 
+                cfg.embedding_provider, cfg.embedding_model)
+    return True, ""
+
+
 __all__ = [
     "get_chroma_client",
     "get_collection",
     "get_query_embedder",
     "get_redis_client",
     "QueryEmbedder",
+    "validate_chroma_connection",
+    "validate_redis_connection",
+    "validate_embedder_config",
 ]
 

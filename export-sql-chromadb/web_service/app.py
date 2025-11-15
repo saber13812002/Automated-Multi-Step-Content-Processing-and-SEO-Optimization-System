@@ -14,6 +14,9 @@ from .clients import (
     get_collection,
     get_query_embedder,
     get_redis_client,
+    validate_chroma_connection,
+    validate_embedder_config,
+    validate_redis_connection,
 )
 from .config import Settings, get_settings
 from .logging_setup import configure_logging
@@ -28,7 +31,7 @@ async def lifespan(app: FastAPI):
     configure_logging(settings.log_level)
 
     logger.info(
-        "Bootstrapping service",
+        "🚀 Starting Chroma Search Service",
         extra={
             "chroma_host": settings.chroma_host,
             "chroma_port": settings.chroma_port,
@@ -39,11 +42,51 @@ async def lifespan(app: FastAPI):
         },
     )
 
-    # Initialize clients so startup fails fast when configuration is invalid.
-    chroma_client = get_chroma_client(settings)
-    collection = get_collection(settings)
-    embedder = get_query_embedder(settings)
-    redis_client = get_redis_client(settings)
+    # Validate all connections before starting service
+    logger.info("📋 Running pre-startup validations...")
+    
+    errors = []
+    
+    # Validate ChromaDB
+    chroma_valid, chroma_error = validate_chroma_connection(settings)
+    if not chroma_valid:
+        errors.append(f"ChromaDB: {chroma_error}")
+    
+    # Validate Redis (optional, but warn if not available)
+    redis_valid, redis_error = validate_redis_connection(settings)
+    if not redis_valid:
+        logger.warning(
+            "⚠️  Redis validation failed (service will continue, but health check may fail): %s",
+            redis_error
+        )
+    
+    # Validate Embedder config
+    embedder_valid, embedder_error = validate_embedder_config(settings)
+    if not embedder_valid:
+        errors.append(f"Embedder: {embedder_error}")
+    
+    # Fail fast if critical errors
+    if errors:
+        error_summary = "\n".join(f"  • {err}" for err in errors)
+        fatal_msg = (
+            "❌ Service startup failed due to configuration errors:\n"
+            f"{error_summary}\n"
+            "Please fix the errors above and restart the service."
+        )
+        logger.error(fatal_msg)
+        raise RuntimeError(fatal_msg)
+    
+    logger.info("✅ All validations passed. Initializing clients...")
+    
+    # Initialize clients - these should not fail now that we validated
+    try:
+        chroma_client = get_chroma_client(settings)
+        collection = get_collection(settings)
+        embedder = get_query_embedder(settings)
+        redis_client = get_redis_client(settings)
+    except Exception as exc:
+        logger.exception("Failed to initialize clients after validation")
+        raise RuntimeError(f"Failed to initialize clients: {exc}") from exc
 
     app.state.settings = settings
     app.state.chroma_client = chroma_client
