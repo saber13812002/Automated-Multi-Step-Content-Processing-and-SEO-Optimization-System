@@ -9,8 +9,11 @@
 - از فایل `.env` برای تنظیمات استفاده می‌کند
 
 **مسیرهای API:**
-- `POST /search` — جستجوی معنایی
+- `GET /` — رابط وب HTML برای جستجو
+- `POST /search` — جستجوی معنایی (با فیلد اختیاری `save` برای ذخیره نتایج)
 - `GET /health` — بررسی وضعیت سرویس‌ها
+- `GET /history` — مشاهده تاریخچه جستجوها
+- `GET /history/{search_id}` — جزئیات یک جستجوی خاص
 
 ---
 
@@ -89,9 +92,37 @@ uvicorn web_service.app:app --host 0.0.0.0 --port 8080 --reload
 
 ### ۳.۴. تست سرویس
 
+#### تست با curl
+
 **بررسی Health Check:**
 ```bash
 curl http://localhost:8080/health
+```
+
+**خروجی نمونه:**
+```json
+{
+  "status": "ok",
+  "chroma": {
+    "status": "ok",
+    "latency_ms": 12.5,
+    "extras": {"heartbeat": 1763216609}
+  },
+  "collection": {
+    "status": "ok",
+    "latency_ms": 8.3,
+    "extras": {
+      "collection": "book_pages_allame",
+      "documents": 5678
+    }
+  },
+  "redis": {
+    "status": "ok",
+    "latency_ms": 0.8,
+    "extras": {"ping": true, "url": "redis://localhost:6379/0"}
+  },
+  "timestamp": "2025-01-13T12:24:39.123456"
+}
 ```
 
 **جستجوی معنایی:**
@@ -101,10 +132,91 @@ curl -X POST http://localhost:8080/search \
   -d '{"query": "آموزش عقاید چیست؟", "top_k": 5}'
 ```
 
+**جستجو با top_k بیشتر:**
+```bash
+curl -X POST http://localhost:8080/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "اعتقاد به آفریننده", "top_k": 10}'
+```
+
+**خروجی نمونه:**
+```json
+{
+  "query": "آموزش عقاید چیست؟",
+  "top_k": 5,
+  "returned": 5,
+  "provider": "openai",
+  "model": "text-embedding-3-small",
+  "collection": "book_pages_allame",
+  "took_ms": 245.67,
+  "timestamp": "2025-01-13T12:24:39.123456",
+  "results": [
+    {
+      "id": "1001-113-0-10-c6662ea8",
+      "distance": 1.1791,
+      "score": -0.1791,
+      "document": "متن کامل سند...",
+      "metadata": {
+        "book_id": 1001,
+        "book_title": "آموزش عقاید",
+        "section_id": 1016,
+        "page_id": 113,
+        "source_link": "https://mesbahyazdi.ir/node/1016#p113"
+      }
+    }
+  ]
+}
+```
+
+#### تست با Python Client
+
+کلاینت Python در `web_client.py` موجود است:
+
+```bash
+# Health check
+python web_client.py --health
+
+# جستجو ساده
+python web_client.py --search "آموزش عقاید چیست؟"
+
+# جستجو با تعداد نتایج مشخص
+python web_client.py --search "اعتقاد به آفریننده" --top-k 10
+
+# نمایش کامل متن
+python web_client.py --search "دین چیست" --full
+
+# خروجی JSON خام
+python web_client.py --search "آموزش عقاید چیست؟" --json
+```
+
 **مثال با `httpie` (اگر نصب است):**
 ```bash
 http POST http://localhost:8080/search query="آموزش عقاید چیست؟" top_k:=5
 ```
+
+### ۳.۵. استفاده از رابط وب HTML
+
+پس از استارت سرویس، می‌توانید از رابط وب HTML استفاده کنید:
+
+1. مرورگر را باز کنید و به آدرس زیر بروید:
+   ```
+   http://localhost:8080
+   ```
+
+2. متن مورد نظر را در فیلد جستجو وارد کنید
+
+3. تعداد نتایج مورد نظر را انتخاب کنید (پیش‌فرض: 10)
+
+4. روی دکمه "جستجو" کلیک کنید
+
+5. نتایج با فیلدهای `id`, `score`, `distance`, `document`, `metadata` نمایش داده می‌شود
+
+6. می‌توانید تاریخچه جستجوها را با کلیک روی "بارگذاری تاریخچه" مشاهده کنید
+
+**نکات:**
+- نتایج به صورت خودکار در دیتابیس SQLite ذخیره می‌شوند (وقتی `save: true` در درخواست باشد)
+- فایل دیتابیس در `export-sql-chromadb/search_history.db` ذخیره می‌شود
+- می‌توانید تاریخچه را با `GET /history` مشاهده کنید
 
 
 ## ۴. اجرای Docker

@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>جستجوی معنایی ChromaDB</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .search-box {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 30px;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .search-input-group {
+            flex: 1;
+            min-width: 300px;
+        }
+
+        .search-input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .top-k-input {
+            width: 120px;
+            padding: 12px 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .search-button {
+            padding: 12px 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            align-self: flex-end;
+        }
+
+        .search-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .search-button:active {
+            transform: translateY(0);
+        }
+
+        .search-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: white;
+            font-size: 1.1rem;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #ff4444;
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .results-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .results-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .results-header h2 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .results-meta {
+            color: #666;
+            font-size: 0.95rem;
+        }
+
+        .result-item {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: box-shadow 0.3s;
+        }
+
+        .result-item:hover {
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .result-id {
+            font-family: monospace;
+            color: #667eea;
+            font-size: 0.9rem;
+        }
+
+        .result-scores {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .score-badge {
+            background: #667eea;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .distance-badge {
+            background: #764ba2;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .result-document {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            line-height: 1.8;
+            color: #333;
+            border-right: 4px solid #667eea;
+        }
+
+        .result-metadata {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .metadata-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .metadata-label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 3px;
+        }
+
+        .metadata-value {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .metadata-link {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .metadata-link:hover {
+            text-decoration: underline;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .history-section {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-top: 30px;
+        }
+
+        .history-section h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .history-button {
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-bottom: 20px;
+        }
+
+        .history-button:hover {
+            background: #218838;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔍 جستجوی معنایی ChromaDB</h1>
+            <p>جستجوی هوشمند در مجموعه اسناد</p>
+        </div>
+
+        <div class="search-box">
+            <form class="search-form" id="searchForm">
+                <div class="search-input-group">
+                    <label for="query">متن جستجو:</label>
+                    <input 
+                        type="text" 
+                        id="query" 
+                        class="search-input" 
+                        placeholder="متن مورد نظر خود را وارد کنید..."
+                        required
+                    >
+                </div>
+                <div class="search-input-group" style="flex: 0 0 auto;">
+                    <label for="topK">تعداد نتایج:</label>
+                    <input 
+                        type="number" 
+                        id="topK" 
+                        class="top-k-input" 
+                        value="10" 
+                        min="1" 
+                        max="50"
+                        required
+                    >
+                </div>
+                <button type="submit" class="search-button" id="searchButton">
+                    جستجو
+                </button>
+            </form>
+        </div>
+
+        <div id="errorContainer"></div>
+        <div id="loadingContainer"></div>
+        <div id="resultsContainer"></div>
+        <div id="historySection" class="history-section" style="display: none;">
+            <h2>تاریخچه جستجو</h2>
+            <button class="history-button" onclick="loadHistory()">بارگذاری تاریخچه</button>
+            <div id="historyContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = window.location.origin;
+        
+        const searchForm = document.getElementById('searchForm');
+        const searchButton = document.getElementById('searchButton');
+        const errorContainer = document.getElementById('errorContainer');
+        const loadingContainer = document.getElementById('loadingContainer');
+        const resultsContainer = document.getElementById('resultsContainer');
+        const historySection = document.getElementById('historySection');
+        const historyContainer = document.getElementById('historyContainer');
+
+        searchForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const query = document.getElementById('query').value.trim();
+            const topK = parseInt(document.getElementById('topK').value);
+            
+            if (!query) {
+                showError('لطفاً متن جستجو را وارد کنید.');
+                return;
+            }
+
+            await performSearch(query, topK);
+        });
+
+        async function performSearch(query, topK) {
+            // Clear previous results
+            errorContainer.innerHTML = '';
+            resultsContainer.innerHTML = '';
+            loadingContainer.innerHTML = '<div class="loading"><div class="spinner"></div><p>در حال جستجو...</p></div>';
+            searchButton.disabled = true;
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        top_k: topK,
+                        save: true
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || 'خطا در جستجو');
+                }
+
+                const data = await response.json();
+                displayResults(data);
+                
+                // Show history section after first search
+                historySection.style.display = 'block';
+            } catch (error) {
+                showError(`خطا: ${error.message}`);
+            } finally {
+                loadingContainer.innerHTML = '';
+                searchButton.disabled = false;
+            }
+        }
+
+        function showError(message) {
+            errorContainer.innerHTML = `<div class="error">${message}</div>`;
+        }
+
+        function displayResults(data) {
+            if (!data.results || data.results.length === 0) {
+                resultsContainer.innerHTML = `
+                    <div class="results-container">
+                        <div class="no-results">
+                            <h3>نتیجه‌ای یافت نشد</h3>
+                            <p>لطفاً کوئری خود را تغییر دهید و دوباره تلاش کنید.</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = `
+                <div class="results-container">
+                    <div class="results-header">
+                        <h2>نتایج جستجو</h2>
+                        <div class="results-meta">
+                            کوئری: "<strong>${escapeHtml(data.query)}</strong>" | 
+                            نمایش ${data.returned} از ${data.top_k} نتیجه | 
+                            زمان اجرا: ${data.took_ms.toFixed(2)} میلی‌ثانیه
+                        </div>
+                    </div>
+            `;
+
+            data.results.forEach((result, index) => {
+                html += `
+                    <div class="result-item">
+                        <div class="result-header">
+                            <span class="result-id">#${index + 1} - ${escapeHtml(result.id)}</span>
+                            <div class="result-scores">
+                                ${result.score !== null ? `<span class="score-badge">Score: ${result.score.toFixed(4)}</span>` : ''}
+                                ${result.distance !== null ? `<span class="distance-badge">Distance: ${result.distance.toFixed(4)}</span>` : ''}
+                            </div>
+                        </div>
+                        ${result.document ? `<div class="result-document">${escapeHtml(result.document)}</div>` : ''}
+                        ${result.metadata && Object.keys(result.metadata).length > 0 ? `
+                            <div class="result-metadata">
+                                ${Object.entries(result.metadata).map(([key, value]) => `
+                                    <div class="metadata-item">
+                                        <span class="metadata-label">${escapeHtml(key)}:</span>
+                                        <span class="metadata-value">
+                                            ${key === 'source_link' && value ? `<a href="${escapeHtml(value)}" target="_blank" class="metadata-link">${escapeHtml(value)}</a>` : escapeHtml(String(value))}
+                                        </span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            resultsContainer.innerHTML = html;
+        }
+
+        async function loadHistory() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/history?limit=10`);
+                if (!response.ok) {
+                    throw new Error('خطا در بارگذاری تاریخچه');
+                }
+                const data = await response.json();
+                displayHistory(data);
+            } catch (error) {
+                historyContainer.innerHTML = `<div class="error">خطا: ${error.message}</div>`;
+            }
+        }
+
+        function displayHistory(data) {
+            if (!data.searches || data.searches.length === 0) {
+                historyContainer.innerHTML = '<p>تاریخچه‌ای وجود ندارد.</p>';
+                return;
+            }
+
+            let html = '<div style="display: grid; gap: 15px;">';
+            data.searches.forEach(search => {
+                html += `
+                    <div class="result-item" style="padding: 15px;">
+                        <div style="margin-bottom: 10px;">
+                            <strong>${escapeHtml(search.query)}</strong>
+                            <span style="color: #666; font-size: 0.9rem; margin-right: 15px;">
+                                ${new Date(search.timestamp).toLocaleString('fa-IR')}
+                            </span>
+                        </div>
+                        <div style="color: #666; font-size: 0.9rem;">
+                            نتایج: ${search.result_count} | زمان: ${search.took_ms.toFixed(2)}ms
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            historyContainer.innerHTML = html;
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Load history on page load
+        window.addEventListener('load', () => {
+            historySection.style.display = 'block';
+            loadHistory();
+        });
+    </script>
+</body>
+</html>
+

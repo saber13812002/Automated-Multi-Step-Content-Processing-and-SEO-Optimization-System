@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class SearchRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Free text query.")
     top_k: int = Field(10, ge=1, le=50, description="Maximum number of results to return.")
+    save: bool = Field(False, description="Save search results to database.")
 
 
 class SearchResult(BaseModel):
@@ -44,5 +45,23 @@ class HealthResponse(BaseModel):
     collection: HealthComponent
     redis: HealthComponent
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class SearchHistoryItem(BaseModel):
+    id: int
+    query: str
+    result_count: int
+    took_ms: float
+    timestamp: datetime
+    collection: str
+    provider: str
+    model: str
+
+
+class SearchHistoryResponse(BaseModel):
+    searches: List[SearchHistoryItem]
+    total: int
+    limit: int
+    offset: int
 
 

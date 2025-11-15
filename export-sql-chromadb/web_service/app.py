@@ -3,11 +3,13 @@ from __future__ import annotations
 import logging
 import time
 from contextlib import asynccontextmanager
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import anyio
-from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.responses import JSONResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from .clients import (
     get_chroma_client,
@@ -19,8 +21,16 @@ from .clients import (
     validate_redis_connection,
 )
 from .config import Settings, get_settings
+from .database import init_database, get_search_history, get_search_results, save_search
 from .logging_setup import configure_logging
-from .schemas import HealthComponent, HealthResponse, SearchRequest, SearchResponse, SearchResult
+from .schemas import (
+    HealthComponent,
+    HealthResponse,
+    SearchHistoryResponse,
+    SearchRequest,
+    SearchResponse,
+    SearchResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +119,13 @@ async def lifespan(app: FastAPI):
     
     logger.info("✅ All validations passed. Initializing clients...")
     
+    # Initialize database
+    try:
+        init_database()
+        logger.info("Database initialized")
+    except Exception as exc:
+        logger.warning("Failed to initialize database (search history will not be saved): %s", exc)
+    
     # Initialize clients - these should not fail now that we validated
     try:
         chroma_client = get_chroma_client(settings)
@@ -135,6 +152,30 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Chroma Search Service", version="1.0.0", lifespan=lifespan)
+
+# Add CORS middleware for HTML UI
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Mount static files for HTML UI
+from pathlib import Path
+
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    
+    # Serve index.html at root
+    @app.get("/")
+    async def root():
+        index_path = static_dir / "index.html"
+        if index_path.exists():
+            return FileResponse(index_path)
+        return {"message": "Chroma Search API", "docs": "/docs", "health": "/health"}
 
 
 def get_app_state(request: Request) -> Dict[str, Any]:
@@ -219,7 +260,7 @@ async def search_documents(
         },
     )
 
-    return SearchResponse(
+    response = SearchResponse(
         query=payload.query,
         top_k=payload.top_k,
         returned=len(response_items),
@@ -229,6 +270,71 @@ async def search_documents(
         results=response_items,
         took_ms=took_ms,
     )
+
+    # Save to database if requested
+    if payload.save:
+        try:
+            # Convert results to dict for JSON serialization
+            results_dict = [item.model_dump() for item in response_items]
+            save_search(
+                query=payload.query,
+                result_count=len(response_items),
+                took_ms=took_ms,
+                collection=settings.chroma_collection,
+                provider=settings.embedding_provider,
+                model=settings.embedding_model,
+                results=results_dict,
+            )
+            logger.debug("Search results saved to database")
+        except Exception as exc:
+            logger.warning("Failed to save search to database: %s", exc)
+            # Don't fail the request if saving fails
+
+    return response
+
+
+@app.get("/history", response_model=SearchHistoryResponse)
+async def get_history(
+    limit: int = Query(20, ge=1, le=100, description="Maximum number of searches to return"),
+    offset: int = Query(0, ge=0, description="Offset for pagination"),
+    search_id: Optional[int] = Query(None, description="Get specific search by ID"),
+):
+    """Get search history."""
+    try:
+        searches, total = get_search_history(limit=limit, offset=offset, search_id=search_id)
+        return SearchHistoryResponse(
+            searches=searches,
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+    except Exception as exc:
+        logger.exception("Failed to get search history")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve search history: {exc}",
+        ) from exc
+
+
+@app.get("/history/{search_id}", response_model=Dict[str, Any])
+async def get_history_item(search_id: int):
+    """Get full details of a specific search including results."""
+    try:
+        search_data = get_search_results(search_id)
+        if not search_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Search with ID {search_id} not found",
+            )
+        return search_data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to get search history item")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve search history item: {exc}",
+        ) from exc
 
 
 @app.get("/health", response_model=HealthResponse)
