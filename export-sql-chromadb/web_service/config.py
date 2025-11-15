@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
-from pydantic import BaseSettings, Field, PositiveInt, validator
+from pydantic import Field, PositiveInt, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +47,12 @@ class Settings(BaseSettings):
     redis_db: int = Field(default=0, alias="REDIS_DB")
     redis_password: Optional[str] = Field(default=None, alias="REDIS_PASSWORD")
 
-    class Config:
-        env_file = _DEFAULT_ENV_PATH
-        env_file_encoding = "utf-8"
-        case_sensitive = False
+    model_config = SettingsConfigDict(
+        env_file=_DEFAULT_ENV_PATH if _DEFAULT_ENV_PATH.exists() else None,
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
 
     @property
     def redis_dsn(self) -> str:
@@ -58,7 +61,8 @@ class Settings(BaseSettings):
         auth_segment = f":{self.redis_password}@" if self.redis_password else ""
         return f"redis://{auth_segment}{self.redis_host}:{self.redis_port}/{self.redis_db}"
 
-    @validator("log_level")
+    @field_validator("log_level")
+    @classmethod
     def _normalize_log_level(cls, value: str) -> str:
         normalized = value.upper()
         valid_levels = {"CRITICAL", "ERROR", "WARNING", "INFO", "DEBUG"}
@@ -67,7 +71,8 @@ class Settings(BaseSettings):
             return "INFO"
         return normalized
 
-    @validator("embedding_provider")
+    @field_validator("embedding_provider")
+    @classmethod
     def _validate_provider(cls, value: str) -> str:
         normalized = value.lower()
         if normalized not in {"openai"}:
