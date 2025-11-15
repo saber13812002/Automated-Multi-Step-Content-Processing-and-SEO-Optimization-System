@@ -155,6 +155,23 @@ pip install pydantic-settings>=2.6.0
 pip install -r web_service/requirements.txt
 ```
 
+### خطای `TypeError: unhashable type: 'Settings'`
+
+**مشکل:**
+```
+TypeError: unhashable type: 'Settings'
+  File ".../web_service/app.py", line 43, in lifespan
+    chroma_client = get_chroma_client(settings)
+```
+
+**راه‌حل:**
+این خطا به‌خاطر استفاده از `Settings` در `@lru_cache` است که در نسخه‌های جدید Pydantic `Settings` unhashable است. این مشکل در کد رفع شده است.
+
+اگر هنوز این خطا را می‌بینید:
+1. مطمئن شوید که آخرین نسخه کد را دارید
+2. کد را از repository جدید pull کنید
+3. یا به‌صورت دستی `@lru_cache` را از توابع در `web_service/clients.py` حذف کنید
+
 ### خطای `pip not found`
 
 **مشکل:**

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 from typing import List, Sequence
 
 import chromadb
@@ -53,8 +52,8 @@ class QueryEmbedder:
         return embeddings
 
 
-@lru_cache
 def get_chroma_client(settings: Settings | None = None):
+    """Create or return ChromaDB client. Not cached to avoid unhashable Settings object."""
     cfg = settings or get_settings()
     sdk_settings = ChromaSettings(
         anonymized_telemetry=cfg.chroma_anonymized_telemetry,
@@ -84,14 +83,14 @@ def get_chroma_client(settings: Settings | None = None):
     return client
 
 
-@lru_cache
 def get_query_embedder(settings: Settings | None = None) -> QueryEmbedder:
+    """Create or return query embedder. Not cached to avoid unhashable Settings object."""
     cfg = settings or get_settings()
     return QueryEmbedder(cfg)
 
 
-@lru_cache
 def get_collection(settings: Settings | None = None):
+    """Get ChromaDB collection. Not cached to avoid unhashable Settings object."""
     cfg = settings or get_settings()
     client = get_chroma_client(cfg)
     try:
@@ -105,8 +104,8 @@ def get_collection(settings: Settings | None = None):
     return collection
 
 
-@lru_cache
 def get_redis_client(settings: Settings | None = None) -> Redis:
+    """Create or return Redis client. Not cached to avoid unhashable Settings object."""
     cfg = settings or get_settings()
     logger.info("Connecting to Redis at %s", cfg.redis_dsn)
     return Redis.from_url(cfg.redis_dsn, decode_responses=True)
