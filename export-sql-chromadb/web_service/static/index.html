@@ -450,14 +450,38 @@
                         ${result.document ? `<div class="result-document">${escapeHtml(result.document)}</div>` : ''}
                         ${result.metadata && Object.keys(result.metadata).length > 0 ? `
                             <div class="result-metadata">
-                                ${Object.entries(result.metadata).map(([key, value]) => `
+                                ${Object.entries(result.metadata).map(([key, value]) => {
+                                    // For source_link, create clickable link
+                                    if (key === 'source_link' && value) {
+                                        // Clean URL: remove surrounding quotes if any
+                                        let url = String(value).trim();
+                                        // Remove leading/trailing quotes (single or double)
+                                        if ((url.startsWith("'") && url.endsWith("'")) || 
+                                            (url.startsWith('"') && url.endsWith('"'))) {
+                                            url = url.slice(1, -1);
+                                        }
+                                        // Ensure URL is absolute (starts with http:// or https://)
+                                        const isAbsolute = /^https?:\/\//i.test(url);
+                                        // Use raw URL in href (no escaping needed for valid URLs)
+                                        // But escape for display text to prevent XSS
+                                        const hrefAttr = isAbsolute ? url : `#`;
+                                        return `
                                     <div class="metadata-item">
                                         <span class="metadata-label">${escapeHtml(key)}:</span>
                                         <span class="metadata-value">
-                                            ${key === 'source_link' && value ? `<a href="${escapeHtml(value)}" target="_blank" class="metadata-link">${escapeHtml(value)}</a>` : escapeHtml(String(value))}
+                                            <a href="${hrefAttr}" target="_blank" rel="noopener noreferrer" class="metadata-link">${escapeHtml(url)}</a>
                                         </span>
                                     </div>
-                                `).join('')}
+                                `;
+                                    }
+                                    // For other metadata, just display as text
+                                    return `
+                                    <div class="metadata-item">
+                                        <span class="metadata-label">${escapeHtml(key)}:</span>
+                                        <span class="metadata-value">${escapeHtml(String(value))}</span>
+                                    </div>
+                                `;
+                                }).join('')}
                             </div>
                         ` : ''}
                     </div>
