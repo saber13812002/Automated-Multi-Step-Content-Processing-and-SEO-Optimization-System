@@ -30,8 +30,39 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     configure_logging(settings.log_level)
 
+    # Print configuration for comparison (without sensitive data)
+    config_summary = f"""
+{'=' * 80}
+🚀 Starting Chroma Search Service
+{'=' * 80}
+📋 Configuration Settings:
+   App Host:               {settings.api_host}
+   App Port:               {settings.api_port}
+   Log Level:              {settings.log_level}
+   
+   ChromaDB Host:          {settings.chroma_host}
+   ChromaDB Port:          {settings.chroma_port}
+   ChromaDB SSL:           {settings.chroma_ssl}
+   ChromaDB API Key:       {'***SET***' if settings.chroma_api_key else '(not set)'}
+   ChromaDB Collection:    {settings.chroma_collection}
+   ChromaDB Persist Dir:   {settings.chroma_persist_directory or '(not set)'}
+   ChromaDB Telemetry:     {settings.chroma_anonymized_telemetry}
+   
+   Embedding Provider:     {settings.embedding_provider}
+   Embedding Model:        {settings.embedding_model}
+   OpenAI API Key:         {'***SET***' if settings.openai_api_key else '(not set)'}
+   
+   Redis URL:              {settings.redis_url or '(not set)'}
+   Redis Host:             {settings.redis_host}
+   Redis Port:             {settings.redis_port}
+   Redis DB:               {settings.redis_db}
+   Redis Password:         {'***SET***' if settings.redis_password else '(not set)'}
+   Redis DSN:              {settings.redis_dsn}
+{'=' * 80}
+"""
+    print(config_summary)
     logger.info(
-        "🚀 Starting Chroma Search Service",
+        "Service configuration loaded",
         extra={
             "chroma_host": settings.chroma_host,
             "chroma_port": settings.chroma_port,
