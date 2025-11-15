@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from contextlib import asynccontextmanager
+from functools import partial
 from typing import Any, Dict, List, Optional
 
 import anyio
@@ -208,13 +209,15 @@ async def search_documents(
     
     # Try query_texts first (if collection has embedding function)
     # This is the same approach as verify_chroma_export.py
+    # Use functools.partial to pass keyword arguments to run_sync
     try:
-        results = await anyio.to_thread.run_sync(
+        query_func = partial(
             collection.query,
             query_texts=[payload.query],
             n_results=payload.top_k,
             include=["documents", "metadatas", "distances"],
         )
+        results = await anyio.to_thread.run_sync(query_func)
         logger.debug("Used query_texts (collection has embedding function)")
     except (ValueError, TypeError, AttributeError) as text_query_exc:
         # If query_texts fails, generate embeddings and use query_embeddings
@@ -224,12 +227,13 @@ async def search_documents(
             if not embeddings or len(embeddings) == 0:
                 raise ValueError("Failed to generate embeddings for query")
             
-            results = await anyio.to_thread.run_sync(
+            query_func_embeddings = partial(
                 collection.query,
                 query_embeddings=embeddings,
                 n_results=payload.top_k,
                 include=["documents", "metadatas", "distances"],
             )
+            results = await anyio.to_thread.run_sync(query_func_embeddings)
             logger.debug("Used query_embeddings")
         except Exception as embed_exc:  # pragma: no cover - network errors
             error_msg = f"Failed to query ChromaDB: {str(embed_exc)}"
