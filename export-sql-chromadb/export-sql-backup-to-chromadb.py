@@ -172,8 +172,21 @@ def parse_insert_values(line: str) -> Optional[BookPageRecord]:
     except Exception as exc:  # pragma: no cover - defensive logging
         raise ValueError(f"Failed to parse INSERT line: {line[:120]}...") from exc
 
-    if len(fields) != 9:
-        raise ValueError(f"Unexpected number of columns ({len(fields)}) in line: {line[:120]}...")
+    # Expected 9 columns, but handle cases with more columns by taking only first 9
+    expected_fields = 9
+    if len(fields) < expected_fields:
+        raise ValueError(
+            f"Not enough columns ({len(fields)} < {expected_fields}) in line: {line[:120]}..."
+        )
+    
+    # Take only first 9 columns if there are more
+    if len(fields) > expected_fields:
+        import sys
+        print(
+            f"⚠️  Warning: Line has {len(fields)} columns, using first {expected_fields} columns.",
+            file=sys.stderr,
+        )
+        fields = fields[:expected_fields]
 
     (
         id_val,
