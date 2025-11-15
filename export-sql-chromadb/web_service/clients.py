@@ -58,39 +58,49 @@ class QueryEmbedder:
 def get_chroma_client(settings: Settings | None = None):
     """Create or return ChromaDB client. Not cached to avoid unhashable Settings object.
     
-    Uses the same logic as verify_chroma_export.py for consistency.
+    Uses EXACTLY the same logic as verify_chroma_export.py for consistency.
+    This function mimics verify_chroma_export.py's create_client() exactly.
     """
     cfg = settings or get_settings()
     
-    # Use the same telemetry logic as verify_chroma_export.py
+    # EXACTLY like verify_chroma_export.py:
     telemetry = os.getenv("CHROMA_ANONYMIZED_TELEMETRY", "False")
     sdk_settings = ChromaSettings(anonymized_telemetry=telemetry.lower() in ("true", "1", "yes"))
 
+    # EXACTLY like verify_chroma_export.py:
     if cfg.chroma_persist_directory:
         persist_path = Path(cfg.chroma_persist_directory)
         persist_path.mkdir(parents=True, exist_ok=True)
         logger.info(
             "Connecting to Chroma persistent client at %s", cfg.chroma_persist_directory
         )
-        client = chromadb.PersistentClient(path=str(persist_path), settings=sdk_settings)
-    else:
-        logger.info(
-            "Connecting to Chroma HTTP client at %s:%s (ssl=%s)",
-            cfg.chroma_host,
-            cfg.chroma_port,
-            cfg.chroma_ssl,
-        )
-        # Use the same header logic as verify_chroma_export.py
-        headers = {"Authorization": cfg.chroma_api_key} if cfg.chroma_api_key else None
-        client = chromadb.HttpClient(
-            host=cfg.chroma_host,
-            port=cfg.chroma_port,
-            ssl=cfg.chroma_ssl,
-            headers=headers,
-            settings=sdk_settings,
-        )
+        return chromadb.PersistentClient(path=str(persist_path), settings=sdk_settings)
 
-    return client
+    # EXACTLY like verify_chroma_export.py - direct return, no logging before creation
+    # Use direct values from settings, ensuring types match
+    host = str(cfg.chroma_host)
+    port = int(cfg.chroma_port)
+    ssl = bool(cfg.chroma_ssl)
+    api_key = str(cfg.chroma_api_key) if cfg.chroma_api_key else ""
+    
+    logger.info(
+        "Connecting to Chroma HTTP client at %s:%s (ssl=%s)",
+        host,
+        port,
+        ssl,
+    )
+    
+    # EXACTLY like verify_chroma_export.py line 24:
+    headers = {"Authorization": api_key} if api_key else None
+    
+    # EXACTLY like verify_chroma_export.py line 20-25:
+    return chromadb.HttpClient(
+        host=host,
+        port=port,
+        ssl=ssl,
+        headers=headers,
+        settings=sdk_settings,
+    )
 
 
 def get_query_embedder(settings: Settings | None = None) -> QueryEmbedder:
