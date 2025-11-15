@@ -294,6 +294,83 @@
         .history-button:hover {
             background: #218838;
         }
+
+        .info-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            color: white;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: help;
+            margin-left: 6px;
+            position: relative;
+            vertical-align: middle;
+            flex-shrink: 0;
+        }
+
+        .info-icon:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        .info-tooltip {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            right: 50%;
+            transform: translateX(50%);
+            margin-bottom: 5px;
+            padding: 10px 14px;
+            background: #2d3748;
+            color: white;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease-in-out;
+            max-width: 280px;
+            white-space: normal;
+            text-align: right;
+            line-height: 1.6;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .info-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            right: 50%;
+            transform: translateX(50%);
+            border: 6px solid transparent;
+            border-top-color: #2d3748;
+        }
+
+        .info-icon:hover .info-tooltip {
+            opacity: 1;
+        }
+
+        .config-info {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 0.9rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .config-info-item {
+            display: inline-block;
+            margin-left: 20px;
+        }
+
+        .config-info-label {
+            opacity: 0.8;
+            margin-left: 5px;
+        }
     </style>
 </head>
 <body>
@@ -301,6 +378,16 @@
         <div class="header">
             <h1>🔍 جستجوی معنایی ChromaDB</h1>
             <p>جستجوی هوشمند در مجموعه اسناد</p>
+            <div class="config-info" id="configInfo" style="display: none;">
+                <span class="config-info-item">
+                    <span class="config-info-label">کالکشن:</span>
+                    <strong id="collectionName">-</strong>
+                </span>
+                <span class="config-info-item">
+                    <span class="config-info-label">مدل امبدینگ:</span>
+                    <strong id="embeddingModel">-</strong>
+                </span>
+            </div>
         </div>
 
         <div class="search-box">
@@ -398,6 +485,17 @@
                 const data = await response.json();
                 displayResults(data);
                 
+                // Update config info in header
+                if (data.collection) {
+                    document.getElementById('collectionName').textContent = data.collection;
+                }
+                if (data.model) {
+                    document.getElementById('embeddingModel').textContent = data.model;
+                }
+                if (data.collection || data.model) {
+                    document.getElementById('configInfo').style.display = 'block';
+                }
+                
                 // Show history section after first search
                 historySection.style.display = 'block';
             } catch (error) {
@@ -443,8 +541,22 @@
                         <div class="result-header">
                             <span class="result-id">#${index + 1} - ${escapeHtml(result.id)}</span>
                             <div class="result-scores">
-                                ${result.score !== null ? `<span class="score-badge">Score: ${result.score.toFixed(4)}</span>` : ''}
-                                ${result.distance !== null ? `<span class="distance-badge">Distance: ${result.distance.toFixed(4)}</span>` : ''}
+                                ${result.score !== null ? `
+                                    <span class="score-badge">
+                                        <span class="info-icon">ℹ
+                                            <span class="info-tooltip">امتیاز شباهت: عددی بین ۰ تا ۱ که نشان‌دهنده میزان شباهت نتیجه به کوئری شماست. هر چه عدد بالاتر باشد، نتیجه مرتبط‌تر است.</span>
+                                        </span>
+                                        شباهت: ${result.score.toFixed(4)}
+                                    </span>
+                                ` : ''}
+                                ${result.distance !== null ? `
+                                    <span class="distance-badge">
+                                        <span class="info-icon">ℹ
+                                            <span class="info-tooltip">فاصله بردار: عددی بین ۰ تا ۲ که نشان‌دهنده فاصله بردار نتیجه از بردار کوئری است. هر چه عدد کمتر باشد، نتیجه مرتبط‌تر است. امتیاز شباهت از این عدد محاسبه می‌شود (شباهت = ۱ - فاصله).</span>
+                                        </span>
+                                        فاصله: ${result.distance.toFixed(4)}
+                                    </span>
+                                ` : ''}
                             </div>
                         </div>
                         ${result.document ? `<div class="result-document">${escapeHtml(result.document)}</div>` : ''}
