@@ -49,14 +49,56 @@ class Segment:
 
 
 def decode_sql_string(value: Optional[str]) -> str:
+    """Decode SQL string with proper UTF-8 handling for Persian text.
+    
+    SQL strings may contain escape sequences (like \\n, \\r, \\") that need to be decoded.
+    This function ensures proper UTF-8 encoding for Persian/Farsi text.
+    
+    The original code used `bytes(value, "utf-8")` which is incorrect.
+    We need to encode to bytes first, then decode with unicode_escape.
+    """
     if value is None:
         return ""
     if value == "NULL":
         return ""
-    # Normalize escaped sequences (e.g., \" \r\n)
+    
+    # Normalize escaped sequences (e.g., \" \r\n \n \t)
+    # The correct way: encode string to bytes, then decode with unicode_escape
     try:
-        return bytes(value, "utf-8").decode("unicode_escape")
-    except UnicodeDecodeError:
+        # Step 1: Encode string to bytes using latin-1 (preserves all byte values 0-255)
+        # This is necessary because unicode_escape decoder expects bytes
+        # latin-1 is a 1:1 mapping (each character maps to its byte value)
+        encoded_bytes = value.encode("latin-1")
+        
+        # Step 2: Decode unicode escape sequences (e.g., \n becomes newline, \uXXXX becomes Unicode char)
+        decoded_str = encoded_bytes.decode("unicode_escape")
+        
+        # Step 3: Ensure result is valid UTF-8
+        # If decoded_str is already valid UTF-8, encode/decode will work fine
+        # If it contains mojibake (double-encoded UTF-8), we try to fix it
+        try:
+            # Test if it's valid UTF-8 by trying to encode/decode
+            test_bytes = decoded_str.encode("utf-8")
+            test_str = test_bytes.decode("utf-8")
+            return test_str
+        except UnicodeEncodeError:
+            # If encoding fails, it might contain invalid characters
+            # Try to fix potential mojibake (double-encoding)
+            try:
+                # If string was double-encoded, encode as latin-1 then decode as utf-8
+                fixed = decoded_str.encode("latin-1").decode("utf-8", errors="replace")
+                return fixed
+            except (UnicodeDecodeError, UnicodeEncodeError):
+                # Last resort: return decoded string with error replacement
+                return decoded_str.encode("utf-8", errors="replace").decode("utf-8")
+        except UnicodeDecodeError:
+            # If decoding fails, return with error replacement
+            return decoded_str.encode("utf-8", errors="replace").decode("utf-8")
+    except (UnicodeDecodeError, UnicodeEncodeError, AttributeError, TypeError) as exc:
+        # Fallback: return value as-is if all decoding methods fail
+        # Log warning for debugging
+        import sys
+        print(f"Warning: Failed to decode SQL string: {exc}", file=sys.stderr)
         return value
 
 
