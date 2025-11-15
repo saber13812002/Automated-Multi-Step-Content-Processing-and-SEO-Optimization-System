@@ -321,7 +321,7 @@
                         type="number" 
                         id="topK" 
                         class="top-k-input" 
-                        value="10" 
+                        value="20" 
                         min="1" 
                         max="50"
                         required
@@ -516,12 +516,46 @@
                 return;
             }
 
-            let html = '<div style="display: grid; gap: 15px;">';
+            // Deduplicate queries: group by query text and count occurrences
+            const queryMap = new Map();
             data.searches.forEach(search => {
+                const queryText = search.query.trim();
+                if (queryMap.has(queryText)) {
+                    const existing = queryMap.get(queryText);
+                    existing.count += 1;
+                    // Keep the most recent timestamp
+                    if (new Date(search.timestamp) > new Date(existing.timestamp)) {
+                        existing.timestamp = search.timestamp;
+                        existing.result_count = search.result_count;
+                        existing.took_ms = search.took_ms;
+                    }
+                } else {
+                    queryMap.set(queryText, {
+                        query: queryText,
+                        count: 1,
+                        timestamp: search.timestamp,
+                        result_count: search.result_count,
+                        took_ms: search.took_ms
+                    });
+                }
+            });
+
+            // Convert map to array and sort by timestamp (newest first)
+            const uniqueSearches = Array.from(queryMap.values()).sort((a, b) => {
+                return new Date(b.timestamp) - new Date(a.timestamp);
+            });
+
+            let html = '<div style="display: grid; gap: 15px;">';
+            uniqueSearches.forEach((search, index) => {
+                const countDisplay = search.count > 1 ? ` <span style="color: #667eea; font-weight: bold;">(${search.count})</span>` : '';
+                // Use data attribute to safely store query for click handler
+                const queryEscaped = escapeHtml(search.query);
                 html += `
-                    <div class="result-item" style="padding: 15px;">
+                    <div class="result-item" style="padding: 15px; cursor: pointer;" 
+                         data-query="${queryEscaped.replace(/"/g, '&quot;')}" 
+                         onclick="loadQueryFromHistory(this.dataset.query)">
                         <div style="margin-bottom: 10px;">
-                            <strong>${escapeHtml(search.query)}</strong>
+                            <strong>${queryEscaped}</strong>${countDisplay}
                             <span style="color: #666; font-size: 0.9rem; margin-right: 15px;">
                                 ${new Date(search.timestamp).toLocaleString('fa-IR')}
                             </span>
@@ -540,6 +574,17 @@
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        function loadQueryFromHistory(query) {
+            // Set query in search input
+            document.getElementById('query').value = query;
+            // Set top_k to 20 (default)
+            document.getElementById('topK').value = 20;
+            // Focus on search input
+            document.getElementById('query').focus();
+            // Scroll to search box
+            document.querySelector('.search-box').scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
         // Load history on page load
