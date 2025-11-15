@@ -74,7 +74,7 @@ python3 export-sql-backup-to-chromadb.py   --sql-path books_pages_mini.sql   --c
 ```
 or this
 ```bash
-python3 export-sql-backup-to-chromadb.py   --sql-path books_pages.sql   --collection book_pages_full_embedding_provider_none   --embedding-provider none   --reset
+python3 export-sql-backup-to-chromadb.py   --sql-path book_pages.sql   --collection book_pages_full_embedding_provider_none   --embedding-provider none   --reset
 ```
 - Switch to OpenAI embeddings by adding `--embedding-provider openai --openai-api-key "$OPENAI_API_KEY"` (model defaults to `text-embedding-3-small` for lower cost).
 - `--embedding-provider none` avoids client-side embedding generation, resulting in zero token spend; ensure your server workflow handles embeddings if you choose this mode.

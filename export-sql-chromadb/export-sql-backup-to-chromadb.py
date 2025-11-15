@@ -54,49 +54,96 @@ def decode_sql_string(value: Optional[str]) -> str:
     SQL strings may contain escape sequences (like \\n, \\r, \\") that need to be decoded.
     This function ensures proper UTF-8 encoding for Persian/Farsi text.
     
-    The original code used `bytes(value, "utf-8")` which is incorrect.
-    We need to encode to bytes first, then decode with unicode_escape.
+    The key insight: SQL strings come in as strings that may contain literal escape sequences.
+    We need to handle them properly without breaking UTF-8 characters.
     """
     if value is None:
         return ""
     if value == "NULL":
         return ""
     
-    # Normalize escaped sequences (e.g., \" \r\n \n \t)
-    # The correct way: encode string to bytes, then decode with unicode_escape
-    try:
-        # Step 1: Encode string to bytes using latin-1 (preserves all byte values 0-255)
-        # This is necessary because unicode_escape decoder expects bytes
-        # latin-1 is a 1:1 mapping (each character maps to its byte value)
-        encoded_bytes = value.encode("latin-1")
-        
-        # Step 2: Decode unicode escape sequences (e.g., \n becomes newline, \uXXXX becomes Unicode char)
-        decoded_str = encoded_bytes.decode("unicode_escape")
-        
-        # Step 3: Ensure result is valid UTF-8
-        # If decoded_str is already valid UTF-8, encode/decode will work fine
-        # If it contains mojibake (double-encoded UTF-8), we try to fix it
+    # Check if string contains escape sequences (literal backslashes followed by special chars)
+    has_escape_sequences = "\\n" in value or "\\r" in value or "\\t" in value or "\\\"" in value or "\\\\" in value or "\\u" in value
+    
+    if not has_escape_sequences:
+        # No escape sequences, likely already decoded - just ensure it's valid UTF-8
+        # If string contains Persian or other UTF-8 chars, it's already correct
         try:
-            # Test if it's valid UTF-8 by trying to encode/decode
-            test_bytes = decoded_str.encode("utf-8")
-            test_str = test_bytes.decode("utf-8")
-            return test_str
-        except UnicodeEncodeError:
-            # If encoding fails, it might contain invalid characters
-            # Try to fix potential mojibake (double-encoding)
+            # Test if it's valid UTF-8 by encoding/decoding
+            value.encode("utf-8").decode("utf-8")
+            return value
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            # If it's not valid UTF-8, it might be mojibake - try to fix
+            # This handles double-encoded UTF-8 (common mojibake)
             try:
-                # If string was double-encoded, encode as latin-1 then decode as utf-8
-                fixed = decoded_str.encode("latin-1").decode("utf-8", errors="replace")
-                return fixed
+                # Try encoding as latin-1 and decoding as utf-8 (reverse mojibake)
+                return value.encode("latin-1").decode("utf-8", errors="replace")
             except (UnicodeDecodeError, UnicodeEncodeError):
-                # Last resort: return decoded string with error replacement
-                return decoded_str.encode("utf-8", errors="replace").decode("utf-8")
-        except UnicodeDecodeError:
-            # If decoding fails, return with error replacement
-            return decoded_str.encode("utf-8", errors="replace").decode("utf-8")
-    except (UnicodeDecodeError, UnicodeEncodeError, AttributeError, TypeError) as exc:
-        # Fallback: return value as-is if all decoding methods fail
-        # Log warning for debugging
+                return value
+    
+    # String contains escape sequences - need to decode them
+    # We need to handle both ASCII escape sequences AND UTF-8 characters together
+    try:
+        import codecs
+        # Use codecs.decode which can handle unicode_escape on strings with UTF-8 chars
+        # This works by treating the string as a raw string literal representation
+        # But we need to be careful: codecs.decode expects bytes for unicode_escape
+        
+        # Check if string is pure ASCII (can use standard method)
+        if all(ord(c) < 128 for c in value):
+            # Pure ASCII - safe to use standard decode
+            decoded_str = value.encode("ascii").decode("unicode_escape")
+            return decoded_str
+        else:
+            # String contains non-ASCII chars (like Persian) - need special handling
+            # Replace escape sequences manually to preserve UTF-8
+            import re
+            
+            # Replace common escape sequences first
+            decoded = value
+            decoded = decoded.replace("\\\\", "\x00BACKSLASH\x00")  # Temporary marker
+            decoded = decoded.replace("\\n", "\n")
+            decoded = decoded.replace("\\r", "\r")
+            decoded = decoded.replace("\\t", "\t")
+            decoded = decoded.replace('\\"', '"')
+            decoded = decoded.replace("\\'", "'")
+            decoded = decoded.replace("\x00BACKSLASH\x00", "\\")  # Restore actual backslashes
+            
+            # Handle \uXXXX sequences (Unicode escape sequences)
+            def replace_unicode_escape(match):
+                hex_str = match.group(1)
+                try:
+                    code_point = int(hex_str, 16)
+                    return chr(code_point)
+                except (ValueError, OverflowError):
+                    return match.group(0)  # Return unchanged if invalid
+            
+            decoded = re.sub(r"\\u([0-9a-fA-F]{4})", replace_unicode_escape, decoded)
+            
+            # Handle \xXX sequences (hex escape sequences)
+            def replace_hex_escape(match):
+                hex_str = match.group(1)
+                try:
+                    byte_val = int(hex_str, 16)
+                    return chr(byte_val)
+                except (ValueError, OverflowError):
+                    return match.group(0)
+            
+            decoded = re.sub(r"\\x([0-9a-fA-F]{2})", replace_hex_escape, decoded)
+            
+            # Ensure result is valid UTF-8
+            try:
+                decoded.encode("utf-8").decode("utf-8")
+                return decoded
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                # If not valid UTF-8, try to fix mojibake
+                try:
+                    return decoded.encode("latin-1").decode("utf-8", errors="replace")
+                except (UnicodeDecodeError, UnicodeEncodeError):
+                    return decoded
+                    
+    except Exception as exc:
+        # Last resort: return value as-is
         import sys
         print(f"Warning: Failed to decode SQL string: {exc}", file=sys.stderr)
         return value
