@@ -389,10 +389,32 @@ def batched(iterable: Iterable[Segment], batch_size: int) -> Iterator[List[Segme
         yield batch
 
 
+def count_records_and_books(sql_path: Path) -> Tuple[int, int]:
+    """Count total records and unique books in SQL file."""
+    print("📊 در حال شمارش رکوردها و کتاب‌ها...", flush=True)
+    total_records = 0
+    unique_books = set()
+    
+    for record in iter_book_pages(sql_path):
+        total_records += 1
+        unique_books.add(record.book_id)
+    
+    return total_records, len(unique_books)
+
+
 def export_to_chroma(args: argparse.Namespace) -> None:
     sql_path = Path(args.sql_path)
     if not sql_path.exists():
         raise FileNotFoundError(f"SQL file not found: {sql_path}")
+
+    # Count total records and books first
+    total_records_count, total_books_count = count_records_and_books(sql_path)
+    print(f"📚 آمار کل:")
+    print(f"   • کل رکوردها: {total_records_count:,}")
+    print(f"   • کل کتاب‌ها: {total_books_count:,}")
+    print(f"   • مدل امبدینگ: {args.embedding_provider}/{args.embedding_model}")
+    print(f"   • اندازه بچ: {args.batch_size}")
+    print("-" * 60, flush=True)
 
     client = create_client(args)
     collection = get_collection(
@@ -412,8 +434,10 @@ def export_to_chroma(args: argparse.Namespace) -> None:
         api_key=args.openai_api_key,
     )
 
-    total_records = 0
+    processed_records = 0
+    processed_books = set()
     total_segments = 0
+    batch_number = 0
 
     segments_iter = (
         segment
@@ -426,21 +450,54 @@ def export_to_chroma(args: argparse.Namespace) -> None:
     )
 
     for batch in batched(segments_iter, args.batch_size):
+        batch_number += 1
+        
         ids = [segment.document_id for segment in batch]
         documents = [segment.text for segment in batch]
         metadatas = [segment.metadata for segment in batch]
 
+        # Track processed records and books
+        for metadata in metadatas:
+            record_id = metadata.get("record_id")
+            if record_id:
+                processed_records = max(processed_records, record_id)
+            book_id = metadata.get("book_id")
+            if book_id:
+                processed_books.add(book_id)
+
+        # Generate embeddings
+        print(f"🔄 بچ #{batch_number}: در حال تولید امبدینگ برای {len(batch)} قطعه...", end=" ", flush=True)
         embeddings = embedding_provider.embed(documents)
+        print("✅", flush=True)
+
+        # Add to collection
+        print(f"   💾 در حال ذخیره در ChromaDB...", end=" ", flush=True)
         add_kwargs = {"ids": ids, "documents": documents, "metadatas": metadatas}
         if embeddings is not None:
             add_kwargs["embeddings"] = embeddings
 
         collection.add(**add_kwargs)
+        print("✅", flush=True)
 
         total_segments += len(batch)
-        total_records = max(total_records, metadatas[-1]["record_id"])
+        
+        # Calculate progress
+        remaining_records = total_records_count - processed_records
+        processed_books_count = len(processed_books)
+        remaining_books = total_books_count - processed_books_count
+        progress_percent = (processed_records / total_records_count * 100) if total_records_count > 0 else 0
+        
+        print(f"   📊 پیشرفت:")
+        print(f"      • رکوردها: {processed_records:,} / {total_records_count:,} ({progress_percent:.1f}%) - باقی‌مانده: {remaining_records:,}")
+        print(f"      • کتاب‌ها: {processed_books_count} / {total_books_count} - باقی‌مانده: {remaining_books}")
+        print(f"      • کل قطعات: {total_segments:,}")
+        print("-" * 60, flush=True)
 
-    print(f"✅ Export completed. Segments added: {total_segments}")
+    print(f"\n✅ ✅ ✅ Export completed successfully!")
+    print(f"   • کل قطعات اضافه شده: {total_segments:,}")
+    print(f"   • کل رکوردهای پردازش شده: {processed_records:,}")
+    print(f"   • کل کتاب‌های پردازش شده: {len(processed_books)}")
+    print(f"   • کالکشن: {args.collection}", flush=True)
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
