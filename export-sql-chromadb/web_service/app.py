@@ -23,11 +23,22 @@ from .clients import (
     validate_redis_connection,
 )
 from .config import Settings, get_settings
-from .database import init_database, get_search_history, get_search_results, save_search
+from .database import (
+    get_export_job,
+    get_export_jobs,
+    get_search_history,
+    get_search_results,
+    init_database,
+    save_search,
+)
 from .logging_setup import configure_logging
 from .schemas import (
+    ExportJobDetail,
+    ExportJobItem,
+    ExportJobsResponse,
     HealthComponent,
     HealthResponse,
+    PaginationInfo,
     SearchHistoryResponse,
     SearchRequest,
     SearchResponse,
@@ -206,13 +217,32 @@ async def search_documents(
     request: Request,
     app_state: Dict[str, Any] = Depends(get_app_state),
 ) -> SearchResponse:
-    logger.info("Received search request", extra={"query": payload.query, "top_k": payload.top_k})
+    logger.info(
+        "Received search request",
+        extra={
+            "query": payload.query,
+            "top_k": payload.top_k,
+            "page": payload.page,
+            "page_size": payload.page_size,
+        },
+    )
 
     settings: Settings = app_state["settings"]
     collection = app_state["collection"]
     embedder = app_state["embedder"]
 
     start = time.perf_counter()
+    
+    # Calculate n_results based on pagination
+    # For pagination, we need to fetch enough results for the current page
+    # If pagination is enabled, fetch enough for current page + some buffer for estimation
+    if settings.enable_pagination:
+        # Fetch enough results for current page, but cap at max_estimated_results
+        n_results = min((payload.page * payload.page_size), settings.max_estimated_results)
+        # Ensure we fetch at least page_size results
+        n_results = max(n_results, payload.page_size)
+    else:
+        n_results = payload.top_k
     
     # Try query_texts first (if collection has embedding function)
     # This is the same approach as verify_chroma_export.py
@@ -221,7 +251,7 @@ async def search_documents(
         query_func = partial(
             collection.query,
             query_texts=[payload.query],
-            n_results=payload.top_k,
+            n_results=n_results,
             include=["documents", "metadatas", "distances"],
         )
         results = await anyio.to_thread.run_sync(query_func)
@@ -237,7 +267,7 @@ async def search_documents(
             query_func_embeddings = partial(
                 collection.query,
                 query_embeddings=embeddings,
-                n_results=payload.top_k,
+                n_results=n_results,
                 include=["documents", "metadatas", "distances"],
             )
             results = await anyio.to_thread.run_sync(query_func_embeddings)
@@ -263,6 +293,15 @@ async def search_documents(
     documents = results.get("documents", [[]])[0]
     metadatas = results.get("metadatas", [[]])[0]
 
+    # Apply pagination to results if enabled
+    if settings.enable_pagination:
+        start_idx = (payload.page - 1) * payload.page_size
+        end_idx = start_idx + payload.page_size
+        ids = ids[start_idx:end_idx]
+        distances = distances[start_idx:end_idx]
+        documents = documents[start_idx:end_idx]
+        metadatas = metadatas[start_idx:end_idx]
+
     response_items: List[SearchResult] = []
     for index, doc_id in enumerate(ids):
         distance = distances[index] if index < len(distances) else None
@@ -279,6 +318,49 @@ async def search_documents(
             )
         )
 
+    # Get total documents in collection if enabled
+    total_documents = None
+    if settings.enable_total_documents:
+        try:
+            total_documents = await anyio.to_thread.run_sync(collection.count)
+        except Exception as exc:
+            logger.warning("Failed to get total documents count: %s", exc)
+
+    # Calculate pagination info if enabled
+    pagination = None
+    if settings.enable_pagination:
+        # Check if we got max results (might be more)
+        all_results_count = len(results.get("ids", [[]])[0])
+        estimated_total = None
+        has_next_page = False
+        total_pages = None
+
+        if settings.enable_estimated_results:
+            if all_results_count >= settings.max_estimated_results:
+                estimated_total = "1000+"
+                has_next_page = True
+            else:
+                estimated_total = str(all_results_count)
+                # Check if there are more results on next page
+                has_next_page = (payload.page * payload.page_size) < all_results_count
+                if estimated_total and not estimated_total.startswith("1000+"):
+                    try:
+                        total_pages = (int(estimated_total) + payload.page_size - 1) // payload.page_size
+                    except (ValueError, TypeError):
+                        pass
+        else:
+            # Without estimation, just check if we have a full page
+            has_next_page = len(response_items) == payload.page_size
+
+        pagination = PaginationInfo(
+            page=payload.page,
+            page_size=payload.page_size,
+            total_pages=total_pages,
+            has_next_page=has_next_page,
+            has_previous_page=payload.page > 1,
+            estimated_total_results=estimated_total,
+        )
+
     logger.info(
         "Search completed",
         extra={
@@ -286,6 +368,8 @@ async def search_documents(
             "top_k": payload.top_k,
             "returned": len(response_items),
             "took_ms": took_ms,
+            "page": payload.page if settings.enable_pagination else None,
+            "page_size": payload.page_size if settings.enable_pagination else None,
         },
     )
 
@@ -298,6 +382,8 @@ async def search_documents(
         collection=settings.chroma_collection,
         results=response_items,
         took_ms=took_ms,
+        total_documents=total_documents,
+        pagination=pagination,
     )
 
     # Save to database if requested
@@ -363,6 +449,70 @@ async def get_history_item(search_id: int):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve search history item: {exc}",
+        ) from exc
+
+
+@app.get("/admin", response_class=FileResponse)
+async def admin_panel():
+    """Serve admin panel HTML page."""
+    admin_path = static_dir / "admin.html"
+    if admin_path.exists():
+        return FileResponse(admin_path)
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail="Admin panel not found",
+    )
+
+
+@app.get("/admin/jobs", response_model=ExportJobsResponse)
+async def get_admin_jobs():
+    """Get list of export jobs (last 50, most recent first)."""
+    try:
+        jobs = get_export_jobs(limit=50)
+        # Convert to ExportJobItem models
+        job_items = [
+            ExportJobItem(
+                id=job["id"],
+                status=job["status"],
+                started_at=job["started_at"],
+                completed_at=job["completed_at"],
+                duration_seconds=job["duration_seconds"],
+                collection=job["collection"],
+                total_records=job["total_records"],
+                total_books=job["total_books"],
+                total_segments=job["total_segments"],
+                total_documents_in_collection=job["total_documents_in_collection"],
+                error_message=job["error_message"],
+            )
+            for job in jobs
+        ]
+        return ExportJobsResponse(jobs=job_items)
+    except Exception as exc:
+        logger.exception("Failed to get export jobs")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve export jobs: {exc}",
+        ) from exc
+
+
+@app.get("/admin/jobs/{job_id}", response_model=ExportJobDetail)
+async def get_admin_job(job_id: int):
+    """Get full details of a specific export job."""
+    try:
+        job = get_export_job(job_id)
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Export job with ID {job_id} not found",
+            )
+        return ExportJobDetail(**job)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to get export job")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve export job: {exc}",
         ) from exc
 
 

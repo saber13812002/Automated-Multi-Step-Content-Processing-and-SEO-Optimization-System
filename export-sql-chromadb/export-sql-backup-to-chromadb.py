@@ -12,6 +12,17 @@ import chromadb
 from bs4 import BeautifulSoup
 from chromadb.config import Settings
 
+# Import database functions for job tracking
+try:
+    # Add parent directory to path to import web_service modules
+    sys.path.insert(0, str(Path(__file__).parent))
+    from web_service.database import create_export_job, update_export_job, init_database
+except ImportError:
+    # If web_service is not available, job tracking will be disabled
+    create_export_job = None
+    update_export_job = None
+    init_database = None
+
 try:
     from chromadb.errors import InvalidCollectionException, NotFoundError
 except ImportError:  # pragma: no cover - compatibility with newer Chroma releases
@@ -415,7 +426,7 @@ def count_records_and_books(sql_path: Path) -> Tuple[int, int]:
     return total_records, len(unique_books)
 
 
-def export_to_chroma(args: argparse.Namespace) -> None:
+def export_to_chroma(args: argparse.Namespace, job_id: Optional[int] = None) -> None:
     sql_path = Path(args.sql_path)
     if not sql_path.exists():
         raise FileNotFoundError(f"SQL file not found: {sql_path}")
@@ -506,11 +517,35 @@ def export_to_chroma(args: argparse.Namespace) -> None:
         print(f"      • کل قطعات: {total_segments:,}")
         print("-" * 60, flush=True)
 
+    # Get total documents in collection
+    total_documents_in_collection = None
+    try:
+        total_documents_in_collection = collection.count()
+    except Exception as exc:
+        print(f"⚠️  Warning: Failed to get collection count: {exc}", file=sys.stderr)
+
     print(f"\n✅ ✅ ✅ Export completed successfully!")
     print(f"   • کل قطعات اضافه شده: {total_segments:,}")
     print(f"   • کل رکوردهای پردازش شده: {processed_records:,}")
     print(f"   • کل کتاب‌های پردازش شده: {len(processed_books)}")
+    if total_documents_in_collection is not None:
+        print(f"   • کل مستندات در کالکشن: {total_documents_in_collection:,}")
     print(f"   • کالکشن: {args.collection}", flush=True)
+
+    # Update job status to completed
+    if job_id is not None and update_export_job is not None:
+        try:
+            update_export_job(
+                job_id,
+                status="completed",
+                total_records=processed_records,
+                total_books=len(processed_books),
+                total_segments=total_segments,
+                total_documents_in_collection=total_documents_in_collection,
+            )
+            print(f"📝 Job #%d به‌روزرسانی شد: completed" % job_id, flush=True)
+        except Exception as exc:
+            print(f"⚠️  Warning: Failed to update job status: {exc}", file=sys.stderr)
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -599,9 +634,30 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
 def main(argv: Optional[Sequence[str]] = None) -> None:
     args = parse_args(argv)
+    job_id = None
+    
+    # Initialize database and create job tracking record
+    if init_database is not None:
+        try:
+            init_database()
+            if create_export_job is not None:
+                job_id = create_export_job(args)
+                print(f"📝 Job #%d ثبت شد" % job_id, flush=True)
+        except Exception as exc:
+            print(f"⚠️  Warning: Failed to initialize job tracking: {exc}", file=sys.stderr)
+            job_id = None
+    
     try:
-        export_to_chroma(args)
+        export_to_chroma(args, job_id=job_id)
     except Exception as exc:
+        # Update job status to failed
+        if job_id is not None and update_export_job is not None:
+            try:
+                update_export_job(job_id, status="failed", error_message=str(exc))
+                print(f"📝 Job #%d به‌روزرسانی شد: failed" % job_id, flush=True)
+            except Exception:
+                pass  # Don't fail if job update fails
+        
         print(f"❌ Export failed: {exc}", file=sys.stderr)
         sys.exit(1)
 

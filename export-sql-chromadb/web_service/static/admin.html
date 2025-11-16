@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>پنل مدیریت - Export Jobs</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .nav-link {
+            display: inline-block;
+            margin-top: 15px;
+            color: white;
+            text-decoration: none;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            transition: background 0.3s;
+        }
+
+        .nav-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .jobs-container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .jobs-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .jobs-header h2 {
+            color: #333;
+            font-size: 1.8rem;
+        }
+
+        .refresh-button {
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .refresh-button:hover {
+            transform: translateY(-2px);
+        }
+
+        .refresh-button:active {
+            transform: translateY(0);
+        }
+
+        .jobs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .jobs-table th,
+        .jobs-table td {
+            padding: 12px;
+            text-align: right;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .jobs-table th {
+            background: #f5f5f5;
+            font-weight: 600;
+            color: #333;
+            position: sticky;
+            top: 0;
+        }
+
+        .jobs-table tr:hover {
+            background: #f9f9f9;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .status-pending {
+            background: #ffc107;
+            color: #000;
+        }
+
+        .status-running {
+            background: #2196F3;
+            color: white;
+        }
+
+        .status-completed {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .status-failed {
+            background: #f44336;
+            color: white;
+        }
+
+        .detail-button {
+            padding: 6px 12px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.3s;
+        }
+
+        .detail-button:hover {
+            background: #5568d3;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            overflow: auto;
+        }
+
+        .modal-content {
+            background: white;
+            margin: 50px auto;
+            padding: 30px;
+            border-radius: 15px;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+
+        .modal-header h2 {
+            color: #333;
+        }
+
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 2rem;
+            cursor: pointer;
+            color: #999;
+            transition: color 0.3s;
+        }
+
+        .close-button:hover {
+            color: #333;
+        }
+
+        .detail-section {
+            margin-bottom: 20px;
+        }
+
+        .detail-section h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 1.2rem;
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #666;
+        }
+
+        .detail-value {
+            color: #333;
+        }
+
+        .info-note {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            color: #1976d2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>پنل مدیریت Export Jobs</h1>
+            <p>نمایش آخرین 50 job</p>
+            <a href="/" class="nav-link">بازگشت به صفحه جستجو</a>
+        </div>
+
+        <div class="jobs-container">
+            <div class="jobs-header">
+                <h2>لیست Jobs</h2>
+                <button class="refresh-button" onclick="loadJobs()">🔄 به‌روزرسانی</button>
+            </div>
+
+            <div id="loading" class="loading">در حال بارگذاری...</div>
+            <div id="error" class="error" style="display: none;"></div>
+
+            <table class="jobs-table" id="jobsTable" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>وضعیت</th>
+                        <th>Collection</th>
+                        <th>شروع</th>
+                        <th>مدت زمان</th>
+                        <th>رکوردها</th>
+                        <th>کتاب‌ها</th>
+                        <th>قطعات</th>
+                        <th>مستندات</th>
+                        <th>عملیات</th>
+                    </tr>
+                </thead>
+                <tbody id="jobsTableBody">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal for job details -->
+    <div id="jobModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>جزئیات Job</h2>
+                <button class="close-button" onclick="closeModal()">&times;</button>
+            </div>
+            <div id="jobDetails"></div>
+        </div>
+    </div>
+
+    <script>
+        function escapeHtml(text) {
+            if (text === null || text === undefined) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleString('fa-IR');
+        }
+
+        function formatDuration(seconds) {
+            if (!seconds) return '-';
+            if (seconds < 60) return `${Math.round(seconds)} ثانیه`;
+            if (seconds < 3600) return `${Math.round(seconds / 60)} دقیقه`;
+            return `${Math.round(seconds / 3600)} ساعت`;
+        }
+
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '-';
+            return num.toLocaleString('fa-IR');
+        }
+
+        function getStatusClass(status) {
+            const statusMap = {
+                'pending': 'status-pending',
+                'running': 'status-running',
+                'completed': 'status-completed',
+                'failed': 'status-failed'
+            };
+            return statusMap[status] || 'status-pending';
+        }
+
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': 'در انتظار',
+                'running': 'در حال اجرا',
+                'completed': 'تکمیل شده',
+                'failed': 'ناموفق'
+            };
+            return statusMap[status] || status;
+        }
+
+        async function loadJobs() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+            const tableEl = document.getElementById('jobsTable');
+            const tableBodyEl = document.getElementById('jobsTableBody');
+
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            tableEl.style.display = 'none';
+
+            try {
+                const response = await fetch('/admin/jobs', {
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                tableBodyEl.innerHTML = '';
+
+                if (data.jobs && data.jobs.length > 0) {
+                    data.jobs.forEach(job => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${job.id}</td>
+                            <td><span class="status-badge ${getStatusClass(job.status)}">${getStatusText(job.status)}</span></td>
+                            <td>${escapeHtml(job.collection)}</td>
+                            <td>${formatDate(job.started_at)}</td>
+                            <td>${formatDuration(job.duration_seconds)}</td>
+                            <td>${formatNumber(job.total_records)}</td>
+                            <td>${formatNumber(job.total_books)}</td>
+                            <td>${formatNumber(job.total_segments)}</td>
+                            <td>${formatNumber(job.total_documents_in_collection)}</td>
+                            <td><button class="detail-button" onclick="showJobDetails(${job.id})">جزئیات</button></td>
+                        `;
+                        tableBodyEl.appendChild(row);
+                    });
+                    tableEl.style.display = 'table';
+                } else {
+                    tableBodyEl.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 40px; color: #666;">هیچ jobی یافت نشد</td></tr>';
+                    tableEl.style.display = 'table';
+                }
+            } catch (error) {
+                errorEl.textContent = `خطا در بارگذاری jobs: ${error.message}`;
+                errorEl.style.display = 'block';
+            } finally {
+                loadingEl.style.display = 'none';
+            }
+        }
+
+        async function showJobDetails(jobId) {
+            const modal = document.getElementById('jobModal');
+            const detailsEl = document.getElementById('jobDetails');
+
+            detailsEl.innerHTML = '<div class="loading">در حال بارگذاری...</div>';
+            modal.style.display = 'block';
+
+            try {
+                const response = await fetch(`/admin/jobs/${jobId}`, {
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const job = await response.json();
+
+                let commandArgs = '';
+                if (job.command_line_args) {
+                    try {
+                        const args = JSON.parse(job.command_line_args);
+                        commandArgs = Object.entries(args)
+                            .map(([key, value]) => `<div class="detail-row"><span class="detail-label">${escapeHtml(key)}:</span><span class="detail-value">${escapeHtml(String(value))}</span></div>`)
+                            .join('');
+                    } catch (e) {
+                        commandArgs = `<div class="detail-value">${escapeHtml(job.command_line_args)}</div>`;
+                    }
+                }
+
+                detailsEl.innerHTML = `
+                    <div class="detail-section">
+                        <h3>اطلاعات کلی</h3>
+                        <div class="detail-row">
+                            <span class="detail-label">ID:</span>
+                            <span class="detail-value">${job.id}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">وضعیت:</span>
+                            <span class="detail-value"><span class="status-badge ${getStatusClass(job.status)}">${getStatusText(job.status)}</span></span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Collection:</span>
+                            <span class="detail-value">${escapeHtml(job.collection)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">شروع:</span>
+                            <span class="detail-value">${formatDate(job.started_at)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">پایان:</span>
+                            <span class="detail-value">${formatDate(job.completed_at)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">مدت زمان:</span>
+                            <span class="detail-value">${formatDuration(job.duration_seconds)}</span>
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>آمار</h3>
+                        <div class="detail-row">
+                            <span class="detail-label">کل رکوردها:</span>
+                            <span class="detail-value">${formatNumber(job.total_records)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">کل کتاب‌ها:</span>
+                            <span class="detail-value">${formatNumber(job.total_books)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">کل قطعات:</span>
+                            <span class="detail-value">${formatNumber(job.total_segments)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">کل مستندات در کالکشن:</span>
+                            <span class="detail-value">${formatNumber(job.total_documents_in_collection)}</span>
+                        </div>
+                    </div>
+
+                    <div class="detail-section">
+                        <h3>تنظیمات Export</h3>
+                        <div class="detail-row">
+                            <span class="detail-label">SQL Path:</span>
+                            <span class="detail-value">${escapeHtml(job.sql_path)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Batch Size:</span>
+                            <span class="detail-value">${job.batch_size}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Max Length:</span>
+                            <span class="detail-value">${job.max_length}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Context Length:</span>
+                            <span class="detail-value">${job.context_length}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Host:</span>
+                            <span class="detail-value">${escapeHtml(job.host)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Port:</span>
+                            <span class="detail-value">${job.port}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">SSL:</span>
+                            <span class="detail-value">${job.ssl ? 'بله' : 'خیر'}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Embedding Provider:</span>
+                            <span class="detail-value">${escapeHtml(job.embedding_provider)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Embedding Model:</span>
+                            <span class="detail-value">${escapeHtml(job.embedding_model)}</span>
+                        </div>
+                        <div class="detail-row">
+                            <span class="detail-label">Reset:</span>
+                            <span class="detail-value">${job.reset ? 'بله' : 'خیر'}</span>
+                        </div>
+                    </div>
+
+                    ${job.error_message ? `
+                    <div class="detail-section">
+                        <h3>خطا</h3>
+                        <div class="error">${escapeHtml(job.error_message)}</div>
+                    </div>
+                    ` : ''}
+
+                    ${commandArgs ? `
+                    <div class="detail-section">
+                        <h3>Command Line Arguments</h3>
+                        ${commandArgs}
+                    </div>
+                    ` : ''}
+                `;
+            } catch (error) {
+                detailsEl.innerHTML = `<div class="error">خطا در بارگذاری جزئیات: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('jobModal');
+            modal.style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('jobModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Load jobs on page load
+        loadJobs();
+    </script>
+</body>
+</html>
+

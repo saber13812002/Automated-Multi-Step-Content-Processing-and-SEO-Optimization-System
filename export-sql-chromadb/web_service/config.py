@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     redis_db: int = Field(default=0, alias="REDIS_DB")
     redis_password: Optional[str] = Field(default=None, alias="REDIS_PASSWORD")
 
+    # Feature flags for search statistics and pagination
+    enable_total_documents: bool = Field(default=True, alias="ENABLE_TOTAL_DOCUMENTS")
+    enable_estimated_results: bool = Field(default=True, alias="ENABLE_ESTIMATED_RESULTS")
+    enable_pagination: bool = Field(default=True, alias="ENABLE_PAGINATION")
+    max_estimated_results: PositiveInt = Field(default=1000, alias="MAX_ESTIMATED_RESULTS")
+
     model_config = SettingsConfigDict(
         env_file=_DEFAULT_ENV_PATH if _DEFAULT_ENV_PATH.exists() else None,
         env_file_encoding="utf-8",

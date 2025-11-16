@@ -562,6 +562,11 @@
         const resultsContainer = document.getElementById('resultsContainer');
         const historySection = document.getElementById('historySection');
         const historyContainer = document.getElementById('historyContainer');
+        
+        // Pagination state
+        let currentPage = 1;
+        let currentQuery = '';
+        let currentTopK = 20;
 
         searchForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -574,10 +579,37 @@
                 return;
             }
 
-            await performSearch(query, topK);
+            // Reset to page 1 for new search
+            currentPage = 1;
+            currentQuery = query;
+            currentTopK = topK;
+            
+            // Update URL with query params
+            const url = new URL(window.location);
+            url.searchParams.set('q', query);
+            url.searchParams.set('page', '1');
+            window.history.pushState({}, '', url);
+
+            await performSearch(query, topK, 1);
+        });
+        
+        // Load query from URL on page load
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const query = urlParams.get('q');
+            const page = parseInt(urlParams.get('page')) || 1;
+            if (query) {
+                document.getElementById('query').value = query;
+                currentQuery = query;
+                currentPage = page;
+                currentTopK = parseInt(document.getElementById('topK').value) || 20;
+                performSearch(query, currentTopK, page);
+            }
+            historySection.style.display = 'block';
+            loadHistory();
         });
 
-        async function performSearch(query, topK) {
+        async function performSearch(query, topK, page = 1) {
             // Clear previous results
             errorContainer.innerHTML = '';
             resultsContainer.innerHTML = '';
@@ -594,6 +626,8 @@
                     body: JSON.stringify({
                         query: query,
                         top_k: topK,
+                        page: page,
+                        page_size: 20,
                         save: true
                     })
                 });
@@ -606,6 +640,17 @@
                 // Ensure UTF-8 encoding when parsing JSON
                 const data = await response.json();
                 displayResults(data);
+                
+                // Update pagination state
+                if (data.pagination) {
+                    currentPage = data.pagination.page;
+                }
+                
+                // Update URL with current page
+                const url = new URL(window.location);
+                url.searchParams.set('q', query);
+                url.searchParams.set('page', currentPage.toString());
+                window.history.pushState({}, '', url);
                 
                 // Update config info in header
                 if (data.collection) {
@@ -625,6 +670,12 @@
             } finally {
                 loadingContainer.innerHTML = '';
                 searchButton.disabled = false;
+            }
+        }
+        
+        function goToPage(page) {
+            if (currentQuery) {
+                performSearch(currentQuery, currentTopK, page);
             }
         }
 
@@ -653,9 +704,50 @@
                             کوئری: "<strong>${escapeHtml(data.query)}</strong>" | 
                             نمایش ${data.returned} از ${data.top_k} نتیجه | 
                             زمان اجرا: ${data.took_ms.toFixed(2)} میلی‌ثانیه
+                            ${data.total_documents ? ` | کل مستندات: ${data.total_documents.toLocaleString('fa-IR')}` : ''}
                         </div>
                     </div>
             `;
+            
+            // Add pagination controls if available
+            if (data.pagination) {
+                const pag = data.pagination;
+                let paginationHtml = '<div class="pagination-controls" style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">';
+                
+                // Previous button
+                paginationHtml += `
+                    <button 
+                        class="pagination-button" 
+                        onclick="goToPage(${pag.page - 1})"
+                        ${!pag.has_previous_page ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;"'}
+                    >
+                        صفحه قبلی
+                    </button>
+                `;
+                
+                // Page info
+                let pageInfo = `صفحه ${pag.page}`;
+                if (pag.total_pages) {
+                    pageInfo += ` از ${pag.total_pages}`;
+                } else if (pag.estimated_total_results) {
+                    pageInfo += ` (${pag.estimated_total_results} نتیجه)`;
+                }
+                paginationHtml += `<span style="font-weight: 600; color: #333;">${pageInfo}</span>`;
+                
+                // Next button
+                paginationHtml += `
+                    <button 
+                        class="pagination-button" 
+                        onclick="goToPage(${pag.page + 1})"
+                        ${!pag.has_next_page ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;"'}
+                    >
+                        صفحه بعدی
+                    </button>
+                `;
+                
+                paginationHtml += '</div>';
+                html += paginationHtml;
+            }
 
             data.results.forEach((result, index) => {
                 html += `
@@ -888,11 +980,6 @@
             document.querySelector('.search-box').scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
 
-        // Load history on page load
-        window.addEventListener('load', () => {
-            historySection.style.display = 'block';
-            loadHistory();
-        });
     </script>
 </body>
 </html>
