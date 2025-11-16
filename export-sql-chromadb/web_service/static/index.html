@@ -448,6 +448,52 @@
             backdrop-filter: blur(10px);
         }
 
+        .approved-queries-box {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 30px;
+        }
+
+        .approved-queries-box h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .approved-queries-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .approved-query-chip {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .approved-query-chip:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .approved-query-count {
+            background: rgba(255, 255, 255, 0.3);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
         .config-info-item {
             display: inline-block;
             margin-left: 20px;
@@ -474,6 +520,12 @@
                     <strong id="embeddingModel">-</strong>
                 </span>
             </div>
+        </div>
+
+        <!-- Approved Queries Box -->
+        <div class="approved-queries-box" id="approvedQueriesBox" style="display: none;">
+            <h3>🔥 سوابق جستجوی تایید شده</h3>
+            <div class="approved-queries-list" id="approvedQueriesList"></div>
         </div>
 
         <div class="search-box">
@@ -979,6 +1031,48 @@
             // Scroll to search box
             document.querySelector('.search-box').scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
+
+        async function loadApprovedQueries() {
+            const boxEl = document.getElementById('approvedQueriesBox');
+            const listEl = document.getElementById('approvedQueriesList');
+
+            try {
+                const response = await fetch('/approved-queries', {
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.queries && data.queries.length > 0) {
+                    let html = '';
+                    data.queries.forEach(q => {
+                        const queryEscaped = escapeHtml(q.query);
+                        html += `
+                            <div class="approved-query-chip" onclick="loadQueryFromHistory('${queryEscaped.replace(/'/g, "\\'")}')">
+                                <span>${queryEscaped}</span>
+                                <span class="approved-query-count">${q.search_count}</span>
+                            </div>
+                        `;
+                    });
+                    listEl.innerHTML = html;
+                    boxEl.style.display = 'block';
+                } else {
+                    boxEl.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Failed to load approved queries:', error);
+                boxEl.style.display = 'none';
+            }
+        }
+
+        // Load approved queries on page load
+        loadApprovedQueries();
 
     </script>
 </body>

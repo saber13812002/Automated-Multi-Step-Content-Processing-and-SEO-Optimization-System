@@ -1,186 +1,225 @@
-<!-- 474b973b-ab78-42a3-a9c3-41baf5a6ee7f 71380655-fcce-4433-8451-2a81c6b54d7a -->
-# Job Tracking، Pagination و نمایش آمار جستجو
+<!-- 474b973b-ab78-42a3-a9c3-41baf5a6ee7f 454d0df5-699b-4ec3-8065-8e4745f2b102 -->
+# پلان پیاده‌سازی: بهبود Admin Panel و Authentication
 
-## 1. Job Tracking در Export Script
+## 1. Admin Panel - باکس تنظیمات ChromaDB
 
-### 1.1. ایجاد جدول Jobs در Database (`database.py`)
+### 1.1. API Endpoints (`app.py`)
 
-- ایجاد جدول `export_jobs` با فیلدها:
-- `id` (PRIMARY KEY AUTOINCREMENT)
-- `status` (pending, running, completed, failed)
-- `started_at` (DATETIME)
-- `completed_at` (DATETIME, nullable)
-- `duration_seconds` (REAL, nullable)
-- `sql_path` (TEXT)
-- `collection` (TEXT)
-- `batch_size` (INTEGER)
-- `max_length` (INTEGER)
-- `context_length` (INTEGER)
-- `host` (TEXT)
-- `port` (INTEGER)
-- `ssl` (BOOLEAN)
-- `embedding_provider` (TEXT)
-- `embedding_model` (TEXT)
-- `reset` (BOOLEAN)
-- `total_records` (INTEGER, nullable)
-- `total_books` (INTEGER, nullable)
-- `total_segments` (INTEGER, nullable)
-- `total_documents_in_collection` (INTEGER, nullable)
-- `error_message` (TEXT, nullable)
-- `command_line_args` (TEXT) - JSON string از تمام arguments
+- `GET /admin/chroma/collections`: لیست تمام کالکشن‌های موجود در ChromaDB
+- `POST /admin/chroma/test-connection`: تست اتصال به ChromaDB
+- `POST /admin/chroma/generate-export-command`: تولید دستور export با پارامترهای قابل تنظیم
+- `POST /admin/chroma/generate-uvicorn-command`: تولید دستور uvicorn با override collection
 
-### 1.2. توابع Database برای Jobs (`database.py`)
+### 1.2. Schema (`schemas.py`)
 
-- `create_export_job(args: argparse.Namespace) -> int`: ثبت job جدید در ابتدای export، return job_id
-- `update_export_job(job_id: int, status: str, **kwargs) -> None`: به‌روزرسانی وضعیت job
-- `get_export_jobs(limit: int, offset: int, status: Optional[str] = None) -> tuple[List[Dict], int]`: دریافت لیست jobs با pagination
-- `get_export_job(job_id: int) -> Optional[Dict]`: دریافت جزئیات یک job
+- `ChromaCollectionInfo`: اطلاعات کالکشن (name, count, metadata)
+- `ChromaTestResponse`: نتیجه تست اتصال
+- `ExportCommandRequest`: پارامترهای تولید دستور export
+- `ExportCommandResponse`: دستور تولید شده
+- `UvicornCommandRequest`: پارامترهای تولید دستور uvicorn
 
-### 1.3. تغییرات در `export-sql-backup-to-chromadb.py`
+### 1.3. UI (`admin.html`)
 
-- در ابتدای `export_to_chroma`: ثبت job با `status='running'` و ذخیره `job_id`
-- در انتهای موفق: به‌روزرسانی با `status='completed'`، `completed_at`، `duration_seconds` و تمام آمارها
-- در صورت خطا: به‌روزرسانی با `status='failed'` و `error_message`
-- استفاده از `try/finally` برای اطمینان از به‌روزرسانی وضعیت حتی در صورت خطا
-- نمایش `job_id` در لاگ‌ها
+- باکس "تنظیمات ChromaDB" با:
+- دکمه "تست اتصال"
+- لیست کالکشن‌ها با تعداد مستندات
+- فرم تولید دستور export (با فیلدهای: sql_path, collection, embedding_provider, reset, ...)
+- فرم تولید دستور uvicorn (با فیلد collection override)
+- نمایش دستورات تولید شده با امکان copy
 
-## 2. Admin Panel API
+## 2. سیستم مدیریت سوابق جستجو
 
-### 2.1. Endpoint برای Jobs (`app.py`)
+### 2.1. Database Schema (`database.py`)
 
-- `GET /admin/jobs`: لیست jobs با pagination
-- Query params: `page` (default: 1), `limit` (default: 20), `status` (optional filter)
-- Response: لیست jobs با pagination metadata (total, page, limit, has_next, has_previous)
-- `GET /admin/jobs/{job_id}`: جزئیات یک job خاص شامل تمام فیلدها
+- جدول جدید `query_approvals`:
+- `id`: PRIMARY KEY
+- `query`: TEXT (unique)
+- `status`: TEXT (approved/rejected/pending) - پیش‌فرض: approved
+- `approved_at`: DATETIME
+- `rejected_at`: DATETIME
+- `notes`: TEXT
+- `search_count`: INTEGER (تعداد تکرار)
+- `last_searched_at`: DATETIME
 
-### 2.2. Schema برای Jobs (`schemas.py`)
+### 2.2. Database Functions (`database.py`)
 
-- `ExportJobItem`: مدل برای نمایش job در لیست (فیلدهای اصلی)
-- `ExportJobDetail`: مدل برای نمایش جزئیات کامل job (همه فیلدها)
-- `ExportJobsResponse`: response با pagination (jobs, total, page, limit, has_next, has_previous)
+- `init_query_approvals_table()`: ایجاد جدول
+- `get_query_approvals(limit, min_count)`: دریافت query‌های تایید شده
+- `approve_query(query)`: تایید query
+- `reject_query(query)`: رد query
+- `delete_query(query)`: حذف query
+- `get_query_stats()`: آمار query‌ها (تکرار، تایید شده، رد شده)
+- `update_query_search_count(query)`: به‌روزرسانی تعداد تکرار
 
-## 3. Pagination برای نتایج جستجو
+### 2.3. API Endpoints (`app.py`)
 
-### 3.1. تغییرات در `SearchRequest` (`schemas.py`)
+- `GET /admin/queries`: لیست query‌ها با فیلتر (status, min_count)
+- `POST /admin/queries/{query}/approve`: تایید query
+- `POST /admin/queries/{query}/reject`: رد query
+- `DELETE /admin/queries/{query}`: حذف query
+- `GET /admin/queries/stats`: آمار query‌ها
 
-- اضافه کردن `page: int = Field(1, ge=1)` - شماره صفحه، شروع از 1
-- اضافه کردن `page_size: int = Field(20, ge=1, le=100)` - تعداد نتایج در هر صفحه
+### 2.4. Configuration (`config.py`)
 
-### 3.2. تغییرات در `SearchResponse` (`schemas.py`)
+- `SHOW_APPROVED_QUERIES`: bool (پیش‌فرض: true) - نمایش query‌های تایید شده در صفحه اصلی
+- `APPROVED_QUERIES_MIN_COUNT`: int (پیش‌فرض: 4) - حداقل تعداد تکرار برای نمایش
+- `APPROVED_QUERIES_LIMIT`: int (پیش‌فرض: 10) - تعداد query‌های نمایش داده شده
 
-- اضافه کردن `PaginationInfo` model:
-- `page: int` - صفحه فعلی
-- `page_size: int` - اندازه صفحه
-- `total_pages: Optional[int]` - تعداد کل صفحات (null اگر > 1000)
-- `has_next_page: bool` - آیا صفحه بعدی وجود دارد
-- `has_previous_page: bool` - آیا صفحه قبلی وجود دارد
-- `estimated_total_results: Optional[str]` - "1000+" یا عدد دقیق به صورت string
-- اضافه کردن `pagination: PaginationInfo` به `SearchResponse`
-- اضافه کردن `total_documents: Optional[int] = None` - تعداد کل مستندات در کالکشن
+### 2.5. Integration با Search (`app.py`)
 
-### 3.3. تغییرات در `app.py` - تابع `search_documents`
+- در `save_search()`: به‌روزرسانی `query_approvals` (افزایش search_count)
+- در `GET /` (index.html): نمایش query‌های تایید شده در بالای صفحه
+- در `POST /search`: بررسی وضعیت query (اگر rejected باشد، warning)
 
-- محاسبه `n_results = min(page_size, max_estimated_results)` برای query
-- Query با `n_results` محاسبه شده
-- اگر `enable_total_documents` فعال باشد: `total_docs = await anyio.to_thread.run_sync(collection.count)`
-- اگر `enable_estimated_results` فعال باشد:
-- اگر `len(results) == max_estimated_results`: `estimated_total = "1000+"` و `has_next_page = True`
-- در غیر این صورت: `estimated_total = str(len(results))` و `has_next_page = len(results) == page_size`
-- محاسبه `total_pages` فقط اگر `estimated_total` عدد دقیق باشد: `ceil(estimated_total / page_size)`
-- محاسبه `has_previous_page = page > 1`
-- اضافه کردن pagination info به response
+### 2.6. UI (`admin.html`)
 
-### 3.4. Feature Flags (`config.py`)
+- باکس "مدیریت سوابق جستجو" با:
+- لیست query‌ها با status badges
+- فیلتر بر اساس status و min_count
+- دکمه‌های تایید/رد/حذف برای هر query
+- نمایش تعداد تکرار و آخرین جستجو
+- آمار کلی (تایید شده، رد شده، pending)
 
-- `enable_total_documents: bool = True` (alias: `ENABLE_TOTAL_DOCUMENTS`)
-- `enable_estimated_results: bool = True` (alias: `ENABLE_ESTIMATED_RESULTS`)
-- `enable_pagination: bool = True` (alias: `ENABLE_PAGINATION`)
-- `max_estimated_results: int = 1000` (alias: `MAX_ESTIMATED_RESULTS`)
+### 2.7. UI (`index.html`)
 
-## 4. Admin Panel UI
+- بخش "سوابق جستجوی تایید شده" در بالای صفحه
+- نمایش query‌های تایید شده با تعداد تکرار بالا
+- قابل کنترل از طریق feature flag
 
-### 4.1. صفحه جدید (`admin.html`)
+## 3. مستندات API (Swagger-like)
 
-- جدول jobs با ستون‌ها:
-- ID
-- Status (با رنگ‌بندی: pending=yellow, running=blue, completed=green, failed=red)
-- Collection
-- Started At
-- Duration
-- Total Records/Segments
-- Actions (دکمه "مشاهده جزئیات")
-- Pagination controls (صفحه بعدی/قبلی، شماره صفحات، input برای رفتن به صفحه خاص)
-- Filter dropdown برای status
-- نمایش جزئیات job در modal یا expandable row
-- طراحی responsive و RTL
+### 3.1. بهبود OpenAPI Docs (`app.py`)
 
-### 4.2. Route در `app.py`
+- اضافه کردن `description` و `example` به تمام endpoints
+- اضافه کردن `tags` برای دسته‌بندی
+- اضافه کردن `responses` با مثال‌های واقعی
+- اضافه کردن `summary` برای هر endpoint
 
-- `GET /admin` یا `GET /admin/jobs`: serve کردن `admin.html`
-- Mount static files برای admin panel (اگر نیاز باشد)
+### 3.2. Custom Documentation Page
 
-## 5. UI برای Pagination در نتایج جستجو (`index.html`)
+- `GET /api-docs`: صفحه HTML سفارشی برای مستندات API
+- یا استفاده از `/docs` (Swagger UI) و `/redoc` (ReDoc) که FastAPI به صورت خودکار می‌سازد
+- اضافه کردن examples و defaults در schemas
 
-### 5.1. Pagination Controls
+### 3.3. API Documentation File
 
-- دکمه "صفحه قبلی" (غیرفعال در صفحه اول)
-- نمایش "صفحه X از Y" یا "صفحه X (بیش از 1000 نتیجه)"
-- دکمه "صفحه بعدی" (غیرفعال در صفحه آخر)
-- Input برای رفتن به صفحه خاص (با validation)
-- نمایش تعداد کل نتایج: "از X مستند" (اگر total_documents موجود باشد)
+- ایجاد `API_DOCUMENTATION.md` با:
+- لیست تمام endpoints
+- مقادیر پیش‌فرض
+- مثال‌های request/response
+- Authentication requirements
+- Rate limiting info
 
-### 5.2. به‌روزرسانی `performSearch`
+## 4. سیستم Authentication و Rate Limiting
 
-- اضافه کردن `page` parameter به request body
-- به‌روزرسانی URL با query params (`?page=X`) برای bookmark کردن
-- حفظ `page` در state برای navigation
-- Reset به صفحه 1 هنگام جستجوی جدید
+### 4.1. Database Schema (`database.py`)
 
-## 6. تست‌ها
+- جدول `api_users`:
+- `id`: PRIMARY KEY
+- `username`: TEXT (unique)
+- `email`: TEXT
+- `created_at`: DATETIME
+- `is_active`: BOOLEAN
 
-### 6.1. Unit Tests (`tests/test_database.py`)
+- جدول `api_tokens`:
+- `id`: PRIMARY KEY
+- `user_id`: INTEGER (FK to api_users)
+- `token`: TEXT (unique, hashed)
+- `name`: TEXT (نام توکن)
+- `rate_limit_per_day`: INTEGER (پیش‌فرض: 1000)
+- `created_at`: DATETIME
+- `expires_at`: DATETIME (nullable)
+- `is_active`: BOOLEAN
+- `last_used_at`: DATETIME
 
-- تست `create_export_job` - ایجاد job جدید
-- تست `update_export_job` - به‌روزرسانی status و fields
-- تست `get_export_jobs` - pagination و filtering
-- تست `get_export_job` - دریافت job خاص
+- جدول `api_token_usage`:
+- `id`: PRIMARY KEY
+- `token_id`: INTEGER (FK to api_tokens)
+- `date`: DATE
+- `request_count`: INTEGER
+- `last_request_at`: DATETIME
 
-### 6.2. Integration Tests (`tests/test_app.py`)
+### 4.2. Database Functions (`database.py`)
 
-- تست `GET /admin/jobs` - لیست jobs با pagination
-- تست `GET /admin/jobs/{id}` - جزئیات job
-- تست `POST /search` با pagination - صفحه 1، 2، آخر
-- تست pagination edge cases:
-- صفحه اول (has_previous = false)
-- صفحه آخر (has_next = false)
-- بیش از 1000 نتیجه (estimated_total = "1000+")
-- کمتر از page_size نتیجه (has_next = false)
+- `init_auth_tables()`: ایجاد جداول
+- `create_api_user(username, email)`: ایجاد کاربر
+- `create_api_token(user_id, name, rate_limit, expires_at)`: ایجاد توکن
+- `get_api_token(token_hash)`: دریافت توکن
+- `increment_token_usage(token_id)`: افزایش تعداد استفاده
+- `get_token_usage_today(token_id)`: دریافت استفاده امروز
+- `reset_daily_usage()`: ریست استفاده روزانه (cron job)
+- `get_all_tokens(user_id)`: لیست توکن‌های یک کاربر
+- `revoke_token(token_id)`: غیرفعال کردن توکن
 
-### 6.3. Test Fixtures
+### 4.3. Authentication Middleware (`app.py`)
 
-- Helper function برای ایجاد test jobs با status مختلف
-- Mock data برای jobs
-- Setup/teardown برای database
+- `verify_api_token(request)`: Dependency برای بررسی توکن
+- `check_rate_limit(token_id)`: بررسی rate limit
+- اعمال middleware به endpoints (به جز `/`, `/health`, `/docs`, `/admin`)
 
-## 7. فایل‌های تغییر یافته/جدید
+### 4.4. API Endpoints (`app.py`)
 
-1. `export-sql-chromadb/web_service/database.py` - توابع job tracking
-2. `export-sql-chromadb/export-sql-backup-to-chromadb.py` - ثبت و به‌روزرسانی jobs
-3. `export-sql-chromadb/web_service/config.py` - feature flags
-4. `export-sql-chromadb/web_service/schemas.py` - models برای jobs و pagination
-5. `export-sql-chromadb/web_service/app.py` - admin endpoints و pagination logic
-6. `export-sql-chromadb/web_service/static/admin.html` - صفحه admin panel (جدید)
-7. `export-sql-chromadb/web_service/static/index.html` - pagination controls
-8. `export-sql-chromadb/.env.example` - ایجاد فایل جدید با تمام متغیرها
-9. `export-sql-chromadb/tests/test_database.py` - تست‌های database (جدید)
-10. `export-sql-chromadb/tests/test_app.py` - تست‌های API (جدید)
-11. `export-sql-chromadb/tests/__init__.py` - package init (جدید)
+- `POST /admin/auth/users`: ایجاد کاربر جدید
+- `GET /admin/auth/users`: لیست کاربران
+- `POST /admin/auth/tokens`: ایجاد توکن جدید
+- `GET /admin/auth/tokens`: لیست توکن‌ها
+- `DELETE /admin/auth/tokens/{token_id}`: حذف/غیرفعال کردن توکن
+- `GET /admin/auth/tokens/{token_id}/usage`: آمار استفاده توکن
 
-## 8. نکات پیاده‌سازی
+### 4.5. UI (`admin.html`)
 
-- Job tracking باید از همان database استفاده کند که search history استفاده می‌کند
-- Pagination باید backward compatible باشد (اگر page مشخص نشود، صفحه 1 در نظر گرفته شود)
-- برای تخمین > 1000، همیشه `has_next_page = True` باشد (مگر اینکه تعداد دقیق نتایج کمتر از page_size باشد)
-- Admin panel باید responsive و user-friendly باشد
-- تمام feature flags باید در `.env.example` مستند شوند
-- تست‌ها باید comprehensive باشند و edge cases را پوشش دهند
+- باکس "مدیریت کاربران و توکن‌ها" با:
+- لیست کاربران
+- فرم ایجاد کاربر جدید
+- لیست توکن‌ها برای هر کاربر
+- فرم ایجاد توکن (با تنظیمات rate limit)
+- نمایش آمار استفاده (امروز، این ماه)
+- دکمه revoke برای توکن‌ها
+
+### 4.6. Configuration (`config.py`)
+
+- `ENABLE_API_AUTH`: bool (پیش‌فرض: false) - فعال/غیرفعال کردن authentication
+- `DEFAULT_RATE_LIMIT_PER_DAY`: int (پیش‌فرض: 1000) - حد پیش‌فرض rate limit
+
+### 4.7. Rate Limiting Logic
+
+- استفاده از Redis برای tracking (اگر موجود باشد) یا SQLite
+- بررسی تعداد درخواست در 24 ساعت گذشته
+- برگرداندن `429 Too Many Requests` در صورت تجاوز
+- Header `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+
+## 5. فایل‌های تغییر یافته/جدید
+
+1. `export-sql-chromadb/web_service/database.py` - جداول و توابع جدید
+2. `export-sql-chromadb/web_service/schemas.py` - models جدید
+3. `export-sql-chromadb/web_service/app.py` - endpoints و middleware جدید
+4. `export-sql-chromadb/web_service/config.py` - تنظیمات جدید
+5. `export-sql-chromadb/web_service/static/admin.html` - باکس‌های جدید
+6. `export-sql-chromadb/web_service/static/index.html` - نمایش query‌های تایید شده
+7. `export-sql-chromadb/API_DOCUMENTATION.md` - مستندات API (جدید)
+8. `export-sql-chromadb/.env.example` - متغیرهای جدید
+
+## 6. ترتیب پیاده‌سازی
+
+1. **Phase 1**: باکس تنظیمات ChromaDB و تولید دستورات
+2. **Phase 2**: سیستم مدیریت سوابق جستجو
+3. **Phase 3**: بهبود مستندات API
+4. **Phase 4**: سیستم Authentication و Rate Limiting
+
+## 7. نکات مهم
+
+- تمام تنظیمات از طریق environment variables قابل کنترل است
+- پیش‌فرض‌ها طوری تنظیم شده‌اند که backward compatible باشند
+- Authentication به صورت optional است (می‌توان غیرفعال کرد)
+- Rate limiting با Redis (اگر موجود باشد) یا SQLite پیاده‌سازی می‌شود
+- تمام endpoint‌ها باید مستندات کامل داشته باشند
+
+### To-dos
+
+- [ ] ایجاد باکس تنظیمات ChromaDB در admin panel با تست اتصال، لیست کالکشن‌ها و تولید دستورات
+- [ ] پیاده‌سازی سیستم تایید/رد query‌ها با جدول query_approvals و API endpoints
+- [ ] نمایش query‌های تایید شده در صفحه اصلی با فیلتر بر اساس تعداد تکرار
+- [ ] بهبود OpenAPI docs و ایجاد فایل API_DOCUMENTATION.md با examples و defaults
+- [ ] ایجاد جداول api_users, api_tokens, api_token_usage در database
+- [ ] پیاده‌سازی authentication middleware و rate limiting
+- [ ] ایجاد باکس مدیریت کاربران و توکن‌ها در admin panel

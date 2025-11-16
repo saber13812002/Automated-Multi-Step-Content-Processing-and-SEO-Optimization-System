@@ -260,16 +260,331 @@
             margin: 20px 0;
             color: #1976d2;
         }
+
+        .admin-box {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-bottom: 30px;
+        }
+
+        .admin-box h2 {
+            color: #333;
+            font-size: 1.8rem;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-group input[type="checkbox"] {
+            width: auto;
+        }
+
+        .command-output {
+            background: #f5f5f5;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin-top: 15px;
+            position: relative;
+        }
+
+        .copy-button {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            padding: 5px 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .copy-button:hover {
+            background: #5568d3;
+        }
+
+        .collections-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 15px;
+        }
+
+        .collection-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .collection-item:last-child {
+            border-bottom: none;
+        }
+
+        .collection-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .collection-count {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .test-result {
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .test-result.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .test-result.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>پنل مدیریت Export Jobs</h1>
-            <p>نمایش آخرین 50 job</p>
+            <h1>پنل مدیریت</h1>
+            <p>تنظیمات ChromaDB، Jobs و مدیریت سیستم</p>
             <a href="/" class="nav-link">بازگشت به صفحه جستجو</a>
         </div>
 
+        <!-- ChromaDB Settings Box -->
+        <div class="admin-box">
+            <h2>⚙️ تنظیمات ChromaDB</h2>
+            
+            <div class="form-group">
+                <button class="refresh-button" onclick="testChromaConnection()">🔍 تست اتصال</button>
+                <button class="refresh-button" onclick="loadCollections()" style="margin-right: 10px;">📋 لیست کالکشن‌ها</button>
+            </div>
+
+            <div id="testResult"></div>
+            <div id="collectionsList"></div>
+
+            <h3 style="margin-top: 30px; margin-bottom: 15px; color: #667eea;">تولید دستور Export</h3>
+            <form id="exportCommandForm" onsubmit="generateExportCommand(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="sqlPath">مسیر فایل SQL:</label>
+                        <input type="text" id="sqlPath" value="book_pages.sql" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="collectionName">نام کالکشن:</label>
+                        <input type="text" id="collectionName" value="book_pages" required>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="embeddingProvider">Embedding Provider:</label>
+                        <select id="embeddingProvider">
+                            <option value="openai">openai</option>
+                            <option value="none">none</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="embeddingModel">Embedding Model:</label>
+                        <input type="text" id="embeddingModel" value="text-embedding-3-small">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="batchSize">Batch Size:</label>
+                        <input type="number" id="batchSize" value="48" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="maxLength">Max Length:</label>
+                        <input type="number" id="maxLength" value="200" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="contextLength">Context Length:</label>
+                        <input type="number" id="contextLength" value="100" min="0">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="resetCollection">
+                        <label for="resetCollection">Reset کالکشن قبل از export</label>
+                    </div>
+                </div>
+                <button type="submit" class="refresh-button">🔧 تولید دستور Export</button>
+            </form>
+            <div id="exportCommandOutput"></div>
+
+            <h3 style="margin-top: 30px; margin-bottom: 15px; color: #667eea;">تولید دستور Uvicorn</h3>
+            <form id="uvicornCommandForm" onsubmit="generateUvicornCommand(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="uvicornHost">Host:</label>
+                        <input type="text" id="uvicornHost" value="0.0.0.0">
+                    </div>
+                    <div class="form-group">
+                        <label for="uvicornPort">Port:</label>
+                        <input type="number" id="uvicornPort" value="8080" min="1" max="65535">
+                    </div>
+                    <div class="form-group">
+                        <label for="uvicornCollection">Collection Override (اختیاری):</label>
+                        <input type="text" id="uvicornCollection" placeholder="خالی بگذارید برای استفاده از .env">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="uvicornReload" checked>
+                        <label for="uvicornReload">Auto-reload (--reload)</label>
+                    </div>
+                </div>
+                <button type="submit" class="refresh-button">🚀 تولید دستور Uvicorn</button>
+            </form>
+            <div id="uvicornCommandOutput"></div>
+        </div>
+
+        <!-- Query Management Box -->
+        <div class="admin-box">
+            <h2>📝 مدیریت سوابق جستجو</h2>
+            
+            <div class="form-group">
+                <button class="refresh-button" onclick="loadQueries()">🔄 به‌روزرسانی</button>
+                <button class="refresh-button" onclick="loadQueryStats()" style="margin-right: 10px;">📊 آمار</button>
+            </div>
+
+            <div id="queryStats" style="margin-bottom: 20px;"></div>
+
+            <div class="form-row" style="margin-bottom: 20px;">
+                <div class="form-group">
+                    <label for="queryStatusFilter">فیلتر بر اساس وضعیت:</label>
+                    <select id="queryStatusFilter" onchange="loadQueries()">
+                        <option value="">همه</option>
+                        <option value="approved">تایید شده</option>
+                        <option value="rejected">رد شده</option>
+                        <option value="pending">در انتظار</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="queryMinCount">حداقل تعداد تکرار:</label>
+                    <input type="number" id="queryMinCount" value="0" min="0" onchange="loadQueries()">
+                </div>
+            </div>
+
+            <div id="queriesLoading" class="loading" style="display: none;">در حال بارگذاری...</div>
+            <div id="queriesError" class="error" style="display: none;"></div>
+            <div id="queriesList"></div>
+        </div>
+
+        <!-- Auth Management Box -->
+        <div class="admin-box">
+            <h2>🔐 مدیریت کاربران و توکن‌ها</h2>
+            
+            <div class="form-group">
+                <button class="refresh-button" onclick="loadUsers()">🔄 به‌روزرسانی کاربران</button>
+                <button class="refresh-button" onclick="loadTokens()" style="margin-right: 10px;">🔄 به‌روزرسانی توکن‌ها</button>
+            </div>
+
+            <h3 style="margin-top: 30px; margin-bottom: 15px; color: #667eea;">ایجاد کاربر جدید</h3>
+            <form id="createUserForm" onsubmit="createUser(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="newUsername">نام کاربری:</label>
+                        <input type="text" id="newUsername" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="newUserEmail">ایمیل (اختیاری):</label>
+                        <input type="email" id="newUserEmail">
+                    </div>
+                </div>
+                <button type="submit" class="refresh-button">➕ ایجاد کاربر</button>
+            </form>
+
+            <h3 style="margin-top: 30px; margin-bottom: 15px; color: #667eea;">ایجاد توکن جدید</h3>
+            <form id="createTokenForm" onsubmit="createToken(event)">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tokenUserId">کاربر:</label>
+                        <select id="tokenUserId" required>
+                            <option value="">انتخاب کاربر...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="tokenName">نام توکن:</label>
+                        <input type="text" id="tokenName" required placeholder="مثلاً: Production API">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tokenRateLimit">حد مجاز در روز:</label>
+                        <input type="number" id="tokenRateLimit" value="1000" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="tokenExpiresAt">تاریخ انقضا (اختیاری):</label>
+                        <input type="datetime-local" id="tokenExpiresAt">
+                    </div>
+                </div>
+                <button type="submit" class="refresh-button">🔑 ایجاد توکن</button>
+            </form>
+            <div id="tokenOutput"></div>
+
+            <h3 style="margin-top: 30px; margin-bottom: 15px; color: #667eea;">لیست کاربران</h3>
+            <div id="usersList"></div>
+
+            <h3 style="margin-top: 30px; margin-bottom: 15px; color: #667eea;">لیست توکن‌ها</h3>
+            <div id="tokensList"></div>
+        </div>
+
+        <!-- Jobs Box -->
         <div class="jobs-container">
             <div class="jobs-header">
                 <h2>لیست Jobs</h2>
@@ -568,8 +883,617 @@
             }
         }
 
+        async function testChromaConnection() {
+            const resultEl = document.getElementById('testResult');
+            resultEl.innerHTML = '<div class="loading">در حال تست اتصال...</div>';
+
+            try {
+                const response = await fetch('/admin/chroma/test-connection', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    let collectionsHtml = '';
+                    if (data.collections && data.collections.length > 0) {
+                        collectionsHtml = `<p><strong>کالکشن‌های موجود:</strong> ${data.collections.join(', ')}</p>`;
+                    }
+                    resultEl.innerHTML = `
+                        <div class="test-result success">
+                            <strong>✅ ${escapeHtml(data.message)}</strong>
+                            ${collectionsHtml}
+                        </div>
+                    `;
+                } else {
+                    resultEl.innerHTML = `
+                        <div class="test-result error">
+                            <strong>❌ ${escapeHtml(data.message)}</strong>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultEl.innerHTML = `
+                    <div class="test-result error">
+                        <strong>❌ خطا در تست اتصال: ${escapeHtml(error.message)}</strong>
+                    </div>
+                `;
+            }
+        }
+
+        async function loadCollections() {
+            const listEl = document.getElementById('collectionsList');
+            listEl.innerHTML = '<div class="loading">در حال بارگذاری...</div>';
+
+            try {
+                const response = await fetch('/admin/chroma/collections', {
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.collections && data.collections.length > 0) {
+                    let html = '<div class="collections-list">';
+                    data.collections.forEach(col => {
+                        html += `
+                            <div class="collection-item">
+                                <span class="collection-name">${escapeHtml(col.name)}</span>
+                                <span class="collection-count">${col.count !== null ? formatNumber(col.count) + ' مستند' : 'نامشخص'}</span>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    listEl.innerHTML = html;
+                } else {
+                    listEl.innerHTML = '<p style="color: #666; padding: 15px;">هیچ کالکشنی یافت نشد</p>';
+                }
+            } catch (error) {
+                listEl.innerHTML = `<div class="error">خطا در بارگذاری کالکشن‌ها: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function generateExportCommand(event) {
+            event.preventDefault();
+            const outputEl = document.getElementById('exportCommandOutput');
+            outputEl.innerHTML = '<div class="loading">در حال تولید دستور...</div>';
+
+            try {
+                const requestData = {
+                    sql_path: document.getElementById('sqlPath').value,
+                    collection: document.getElementById('collectionName').value,
+                    embedding_provider: document.getElementById('embeddingProvider').value,
+                    embedding_model: document.getElementById('embeddingModel').value,
+                    reset: document.getElementById('resetCollection').checked,
+                    batch_size: parseInt(document.getElementById('batchSize').value),
+                    max_length: parseInt(document.getElementById('maxLength').value),
+                    context_length: parseInt(document.getElementById('contextLength').value),
+                };
+
+                const response = await fetch('/admin/chroma/generate-export-command', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Accept': 'application/json; charset=utf-8'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                outputEl.innerHTML = `
+                    <div class="command-output">
+                        <button class="copy-button" onclick="copyToClipboard('${escapeHtml(data.command).replace(/'/g, "\\'")}')">📋 کپی</button>
+                        <div style="margin-top: 30px;">
+                            <strong>${escapeHtml(data.description)}</strong>
+                            <pre style="margin-top: 10px; white-space: pre-wrap; word-break: break-all;">${escapeHtml(data.command)}</pre>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                outputEl.innerHTML = `<div class="error">خطا در تولید دستور: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function generateUvicornCommand(event) {
+            event.preventDefault();
+            const outputEl = document.getElementById('uvicornCommandOutput');
+            outputEl.innerHTML = '<div class="loading">در حال تولید دستور...</div>';
+
+            try {
+                const requestData = {
+                    host: document.getElementById('uvicornHost').value,
+                    port: parseInt(document.getElementById('uvicornPort').value),
+                    reload: document.getElementById('uvicornReload').checked,
+                    collection: document.getElementById('uvicornCollection').value || null,
+                };
+
+                const response = await fetch('/admin/chroma/generate-uvicorn-command', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Accept': 'application/json; charset=utf-8'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                let envVarsHtml = '';
+                if (data.env_vars) {
+                    envVarsHtml = '<div style="margin-top: 15px;"><strong>متغیرهای محیطی:</strong><pre style="margin-top: 5px;">';
+                    for (const [key, value] of Object.entries(data.env_vars)) {
+                        envVarsHtml += `${key}=${value}\n`;
+                    }
+                    envVarsHtml += '</pre></div>';
+                }
+
+                outputEl.innerHTML = `
+                    <div class="command-output">
+                        <button class="copy-button" onclick="copyToClipboard('${escapeHtml(data.command).replace(/'/g, "\\'")}')">📋 کپی</button>
+                        <div style="margin-top: 30px;">
+                            <strong>${escapeHtml(data.description)}</strong>
+                            <pre style="margin-top: 10px; white-space: pre-wrap;">${escapeHtml(data.command)}</pre>
+                            ${envVarsHtml}
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                outputEl.innerHTML = `<div class="error">خطا در تولید دستور: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('دستور کپی شد!');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+
+        async function loadQueries() {
+            const loadingEl = document.getElementById('queriesLoading');
+            const errorEl = document.getElementById('queriesError');
+            const listEl = document.getElementById('queriesList');
+
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+
+            try {
+                const status = document.getElementById('queryStatusFilter').value;
+                const minCount = parseInt(document.getElementById('queryMinCount').value) || 0;
+                
+                let url = `/admin/queries?min_count=${minCount}&limit=100`;
+                if (status) {
+                    url += `&status=${status}`;
+                }
+
+                const response = await fetch(url, {
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.queries && data.queries.length > 0) {
+                    let html = '<div class="collections-list">';
+                    data.queries.forEach(q => {
+                        const statusClass = q.status === 'approved' ? 'status-completed' : 
+                                           q.status === 'rejected' ? 'status-failed' : 'status-pending';
+                        const statusText = q.status === 'approved' ? 'تایید شده' : 
+                                          q.status === 'rejected' ? 'رد شده' : 'در انتظار';
+                        
+                        html += `
+                            <div class="collection-item">
+                                <div style="flex: 1;">
+                                    <div class="collection-name">${escapeHtml(q.query)}</div>
+                                    <div style="font-size: 0.85rem; color: #666; margin-top: 5px;">
+                                        تعداد تکرار: ${formatNumber(q.search_count)} | 
+                                        آخرین جستجو: ${q.last_searched_at ? formatDate(q.last_searched_at) : '-'}
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 5px; align-items: center;">
+                                    <span class="status-badge ${statusClass}">${statusText}</span>
+                                    ${q.status !== 'approved' ? `<button class="detail-button" onclick="approveQuery('${encodeURIComponent(q.query)}')">✅ تایید</button>` : ''}
+                                    ${q.status !== 'rejected' ? `<button class="detail-button" onclick="rejectQuery('${encodeURIComponent(q.query)}')" style="background: #dc3545;">❌ رد</button>` : ''}
+                                    <button class="detail-button" onclick="deleteQuery('${encodeURIComponent(q.query)}')" style="background: #6c757d;">🗑️ حذف</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    listEl.innerHTML = html;
+                } else {
+                    listEl.innerHTML = '<p style="color: #666; padding: 15px;">هیچ queryی یافت نشد</p>';
+                }
+            } catch (error) {
+                errorEl.textContent = `خطا در بارگذاری queries: ${escapeHtml(error.message)}`;
+                errorEl.style.display = 'block';
+            } finally {
+                loadingEl.style.display = 'none';
+            }
+        }
+
+        async function loadQueryStats() {
+            const statsEl = document.getElementById('queryStats');
+            statsEl.innerHTML = '<div class="loading">در حال بارگذاری...</div>';
+
+            try {
+                const response = await fetch('/admin/queries/stats', {
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const stats = await response.json();
+                statsEl.innerHTML = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                        <div><strong>کل:</strong> ${formatNumber(stats.total)}</div>
+                        <div><strong>تایید شده:</strong> <span style="color: #28a745;">${formatNumber(stats.approved)}</span></div>
+                        <div><strong>رد شده:</strong> <span style="color: #dc3545;">${formatNumber(stats.rejected)}</span></div>
+                        <div><strong>در انتظار:</strong> <span style="color: #ffc107;">${formatNumber(stats.pending)}</span></div>
+                        <div><strong>کل جستجوها:</strong> ${formatNumber(stats.total_searches)}</div>
+                    </div>
+                `;
+            } catch (error) {
+                statsEl.innerHTML = `<div class="error">خطا در بارگذاری آمار: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function approveQuery(query) {
+            try {
+                const response = await fetch(`/admin/queries/${encodeURIComponent(query)}/approve`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                alert('Query تایید شد!');
+                loadQueries();
+                loadQueryStats();
+            } catch (error) {
+                alert(`خطا در تایید query: ${error.message}`);
+            }
+        }
+
+        async function rejectQuery(query) {
+            try {
+                const response = await fetch(`/admin/queries/${encodeURIComponent(query)}/reject`, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                alert('Query رد شد!');
+                loadQueries();
+                loadQueryStats();
+            } catch (error) {
+                alert(`خطا در رد query: ${error.message}`);
+            }
+        }
+
+        async function deleteQuery(query) {
+            if (!confirm('آیا مطمئن هستید که می‌خواهید این query را حذف کنید؟')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/admin/queries/${encodeURIComponent(query)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                alert('Query حذف شد!');
+                loadQueries();
+                loadQueryStats();
+            } catch (error) {
+                alert(`خطا در حذف query: ${error.message}`);
+            }
+        }
+
+        async function loadUsers() {
+            const listEl = document.getElementById('usersList');
+            listEl.innerHTML = '<div class="loading">در حال بارگذاری...</div>';
+
+            try {
+                const response = await fetch('/admin/auth/users', {
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                // Populate user select for token creation
+                const userSelect = document.getElementById('tokenUserId');
+                userSelect.innerHTML = '<option value="">انتخاب کاربر...</option>';
+                data.users.forEach(user => {
+                    const option = document.createElement('option');
+                    option.value = user.id;
+                    option.textContent = `${user.username}${user.email ? ` (${user.email})` : ''}`;
+                    userSelect.appendChild(option);
+                });
+
+                if (data.users && data.users.length > 0) {
+                    let html = '<div class="collections-list">';
+                    data.users.forEach(user => {
+                        html += `
+                            <div class="collection-item">
+                                <div style="flex: 1;">
+                                    <div class="collection-name">${escapeHtml(user.username)}</div>
+                                    <div style="font-size: 0.85rem; color: #666; margin-top: 5px;">
+                                        ${user.email ? `ایمیل: ${escapeHtml(user.email)} | ` : ''}
+                                        توکن‌ها: ${user.token_count || 0} | 
+                                        ایجاد شده: ${formatDate(user.created_at)}
+                                    </div>
+                                </div>
+                                <div>
+                                    <span class="status-badge ${user.is_active ? 'status-completed' : 'status-failed'}">
+                                        ${user.is_active ? 'فعال' : 'غیرفعال'}
+                                    </span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    listEl.innerHTML = html;
+                } else {
+                    listEl.innerHTML = '<p style="color: #666; padding: 15px;">هیچ کاربری یافت نشد</p>';
+                }
+            } catch (error) {
+                listEl.innerHTML = `<div class="error">خطا در بارگذاری کاربران: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function loadTokens() {
+            const listEl = document.getElementById('tokensList');
+            listEl.innerHTML = '<div class="loading">در حال بارگذاری...</div>';
+
+            try {
+                const response = await fetch('/admin/auth/tokens', {
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.tokens && data.tokens.length > 0) {
+                    let html = '<div class="collections-list">';
+                    data.tokens.forEach(token => {
+                        const usagePercent = token.usage_today ? (token.usage_today / token.rate_limit_per_day * 100) : 0;
+                        html += `
+                            <div class="collection-item">
+                                <div style="flex: 1;">
+                                    <div class="collection-name">${escapeHtml(token.name)}</div>
+                                    <div style="font-size: 0.85rem; color: #666; margin-top: 5px;">
+                                        کاربر: ${escapeHtml(token.username)} | 
+                                        استفاده امروز: ${formatNumber(token.usage_today || 0)} / ${formatNumber(token.rate_limit_per_day)} 
+                                        (${usagePercent.toFixed(1)}%) | 
+                                        ${token.expires_at ? `انقضا: ${formatDate(token.expires_at)} | ` : ''}
+                                        ${token.last_used_at ? `آخرین استفاده: ${formatDate(token.last_used_at)}` : 'هرگز استفاده نشده'}
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 5px; align-items: center;">
+                                    <span class="status-badge ${token.is_active ? 'status-completed' : 'status-failed'}">
+                                        ${token.is_active ? 'فعال' : 'غیرفعال'}
+                                    </span>
+                                    ${token.is_active ? `<button class="detail-button" onclick="revokeToken(${token.id})" style="background: #dc3545;">🚫 غیرفعال</button>` : ''}
+                                    <button class="detail-button" onclick="showTokenUsage(${token.id})">📊 آمار</button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    listEl.innerHTML = html;
+                } else {
+                    listEl.innerHTML = '<p style="color: #666; padding: 15px;">هیچ توکنی یافت نشد</p>';
+                }
+            } catch (error) {
+                listEl.innerHTML = `<div class="error">خطا در بارگذاری توکن‌ها: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function createUser(event) {
+            event.preventDefault();
+            const username = document.getElementById('newUsername').value;
+            const email = document.getElementById('newUserEmail').value;
+
+            try {
+                const response = await fetch('/admin/auth/users', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Accept': 'application/json; charset=utf-8'
+                    },
+                    body: JSON.stringify({
+                        username: username,
+                        email: email || null
+                    })
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+                }
+
+                alert('کاربر با موفقیت ایجاد شد!');
+                document.getElementById('createUserForm').reset();
+                loadUsers();
+            } catch (error) {
+                alert(`خطا در ایجاد کاربر: ${error.message}`);
+            }
+        }
+
+        async function createToken(event) {
+            event.preventDefault();
+            const outputEl = document.getElementById('tokenOutput');
+            outputEl.innerHTML = '<div class="loading">در حال ایجاد توکن...</div>';
+
+            const userId = parseInt(document.getElementById('tokenUserId').value);
+            const name = document.getElementById('tokenName').value;
+            const rateLimit = parseInt(document.getElementById('tokenRateLimit').value);
+            const expiresAt = document.getElementById('tokenExpiresAt').value;
+
+            try {
+                const requestData = {
+                    user_id: userId,
+                    name: name,
+                    rate_limit_per_day: rateLimit,
+                };
+
+                if (expiresAt) {
+                    requestData.expires_at = new Date(expiresAt).toISOString();
+                }
+
+                const response = await fetch('/admin/auth/tokens', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Accept': 'application/json; charset=utf-8'
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || `HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                outputEl.innerHTML = `
+                    <div class="command-output">
+                        <button class="copy-button" onclick="copyToClipboard('${escapeHtml(data.token).replace(/'/g, "\\'")}')">📋 کپی توکن</button>
+                        <div style="margin-top: 30px;">
+                            <strong>✅ توکن با موفقیت ایجاد شد!</strong>
+                            <p style="margin-top: 10px; color: #dc3545; font-weight: bold;">
+                                ⚠️ این توکن فقط یک بار نمایش داده می‌شود. لطفاً آن را ذخیره کنید!
+                            </p>
+                            <div style="margin-top: 15px;">
+                                <strong>توکن:</strong>
+                                <pre style="margin-top: 5px; white-space: pre-wrap; word-break: break-all; background: #f0f0f0; padding: 10px; border-radius: 5px;">${escapeHtml(data.token)}</pre>
+                            </div>
+                            <div style="margin-top: 15px;">
+                                <strong>اطلاعات:</strong>
+                                <ul style="margin-top: 5px;">
+                                    <li>نام: ${escapeHtml(data.name)}</li>
+                                    <li>کاربر: ${escapeHtml(data.username)}</li>
+                                    <li>حد مجاز: ${formatNumber(data.rate_limit_per_day)} درخواست در روز</li>
+                                    ${data.expires_at ? `<li>انقضا: ${formatDate(data.expires_at)}</li>` : '<li>بدون انقضا</li>'}
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('createTokenForm').reset();
+                loadTokens();
+            } catch (error) {
+                outputEl.innerHTML = `<div class="error">خطا در ایجاد توکن: ${escapeHtml(error.message)}</div>`;
+            }
+        }
+
+        async function revokeToken(tokenId) {
+            if (!confirm('آیا مطمئن هستید که می‌خواهید این توکن را غیرفعال کنید؟')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/admin/auth/tokens/${tokenId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                alert('توکن غیرفعال شد!');
+                loadTokens();
+            } catch (error) {
+                alert(`خطا در غیرفعال کردن توکن: ${error.message}`);
+            }
+        }
+
+        async function showTokenUsage(tokenId) {
+            try {
+                const response = await fetch(`/admin/auth/tokens/${tokenId}/usage`, {
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const usage = await response.json();
+                const usagePercent = (usage.usage_today / usage.rate_limit * 100).toFixed(1);
+                alert(
+                    `📊 آمار استفاده توکن #${tokenId}\n\n` +
+                    `استفاده امروز: ${formatNumber(usage.usage_today)} / ${formatNumber(usage.rate_limit)}\n` +
+                    `باقی‌مانده: ${formatNumber(usage.remaining)}\n` +
+                    `درصد استفاده: ${usagePercent}%\n` +
+                    `ریست در: ${formatDate(usage.reset_at)}`
+                );
+            } catch (error) {
+                alert(`خطا در دریافت آمار: ${error.message}`);
+            }
+        }
+
         // Load jobs on page load
         loadJobs();
+        loadQueryStats();
+        loadUsers();
+        loadTokens();
     </script>
 </body>
 </html>

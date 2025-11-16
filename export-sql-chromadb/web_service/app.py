@@ -24,25 +24,57 @@ from .clients import (
 )
 from .config import Settings, get_settings
 from .database import (
+    approve_query,
+    create_api_token,
+    create_api_user,
+    delete_query,
+    get_all_tokens,
+    get_all_users,
+    get_api_token,
     get_export_job,
     get_export_jobs,
+    get_query_approvals,
+    get_query_stats,
     get_search_history,
     get_search_results,
+    get_token_usage_today,
+    increment_token_usage,
     init_database,
+    reject_query,
+    revoke_token,
     save_search,
+    update_query_search_count,
 )
 from .logging_setup import configure_logging
 from .schemas import (
+    ChromaCollectionInfo,
+    ChromaCollectionsResponse,
+    ChromaTestResponse,
+    CreateTokenRequest,
+    CreateUserRequest,
+    ExportCommandRequest,
+    ExportCommandResponse,
     ExportJobDetail,
     ExportJobItem,
     ExportJobsResponse,
     HealthComponent,
     HealthResponse,
     PaginationInfo,
+    QueryApprovalItem,
+    QueryApprovalsResponse,
+    QueryStatsResponse,
     SearchHistoryResponse,
     SearchRequest,
     SearchResponse,
     SearchResult,
+    TokenItem,
+    TokenResponse,
+    TokenUsageResponse,
+    TokensResponse,
+    UserItem,
+    UsersResponse,
+    UvicornCommandRequest,
+    UvicornCommandResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -164,7 +196,41 @@ async def lifespan(app: FastAPI):
             logger.exception("Failed to close Redis connection.")
 
 
-app = FastAPI(title="Chroma Search Service", version="1.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="Chroma Search Service",
+    version="1.0.0",
+    description="""
+    سرویس وب FastAPI برای جستجوی معنایی در ChromaDB.
+    
+    ## ویژگی‌ها
+    
+    - جستجوی معنایی با استفاده از embeddings
+    - مدیریت سوابق جستجو
+    - پنل مدیریت برای Export Jobs و Query Approvals
+    - Health checks برای ChromaDB و Redis
+    - تولید دستورات Export و Uvicorn
+    
+    ## مستندات
+    
+    - `/docs` - Swagger UI
+    - `/redoc` - ReDoc
+    """,
+    lifespan=lifespan,
+    tags_metadata=[
+        {
+            "name": "search",
+            "description": "جستجوی معنایی در ChromaDB",
+        },
+        {
+            "name": "admin",
+            "description": "پنل مدیریت و تنظیمات",
+        },
+        {
+            "name": "health",
+            "description": "بررسی وضعیت سرویس‌ها",
+        },
+    ],
+)
 
 # Override default JSONResponse to ensure UTF-8 encoding
 class UTF8JSONResponse(StarletteJSONResponse):
@@ -172,7 +238,7 @@ class UTF8JSONResponse(StarletteJSONResponse):
 
 app.default_response_class = UTF8JSONResponse
 
-# Add CORS middleware for HTML UI
+# Add CORS middleware for HTML UI (before auth middleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -180,6 +246,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Auth middleware must be added after CORS but before other middleware
+# It's already defined as a function, we'll register it properly
 
 # Mount static files for HTML UI
 from pathlib import Path
@@ -211,6 +280,14 @@ def get_app_state(request: Request) -> Dict[str, Any]:
     "/search",
     response_model=SearchResponse,
     status_code=status.HTTP_200_OK,
+    summary="جستجوی معنایی",
+    description="""
+    انجام جستجوی معنایی در ChromaDB با استفاده از embeddings.
+    
+    کوئری متنی کاربر امبدینگ می‌شود و سپس در ChromaDB جستجو می‌شود.
+    نتایج شامل متن سند، متادیتا، امتیاز شباهت و فاصله است.
+    """,
+    tags=["search"],
 )
 async def search_documents(
     payload: SearchRequest,
@@ -516,7 +593,490 @@ async def get_admin_job(job_id: int):
         ) from exc
 
 
-@app.get("/health", response_model=HealthResponse)
+@app.get("/admin/chroma/collections", response_model=ChromaCollectionsResponse)
+async def get_chroma_collections(
+    app_state: Dict[str, Any] = Depends(get_app_state),
+):
+    """Get list of all collections in ChromaDB."""
+    try:
+        chroma_client = app_state["chroma_client"]
+        collections = await anyio.to_thread.run_sync(chroma_client.list_collections)
+        
+        collection_infos = []
+        for col in collections:
+            try:
+                count = await anyio.to_thread.run_sync(col.count)
+                metadata = await anyio.to_thread.run_sync(lambda: col.metadata) if hasattr(col, 'metadata') else {}
+            except Exception:
+                count = None
+                metadata = {}
+            
+            collection_infos.append(
+                ChromaCollectionInfo(
+                    name=col.name,
+                    count=count,
+                    metadata=metadata if isinstance(metadata, dict) else {},
+                )
+            )
+        
+        return ChromaCollectionsResponse(collections=collection_infos)
+    except Exception as exc:
+        logger.exception("Failed to list ChromaDB collections")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list collections: {exc}",
+        ) from exc
+
+
+@app.post("/admin/chroma/test-connection", response_model=ChromaTestResponse)
+async def test_chroma_connection(
+    app_state: Dict[str, Any] = Depends(get_app_state),
+):
+    """Test connection to ChromaDB and list available collections."""
+    try:
+        chroma_client = app_state["chroma_client"]
+        
+        # Test heartbeat
+        heartbeat = await anyio.to_thread.run_sync(chroma_client.heartbeat)
+        
+        # List collections
+        collections = await anyio.to_thread.run_sync(chroma_client.list_collections)
+        collection_names = [col.name for col in collections] if collections else []
+        
+        return ChromaTestResponse(
+            success=True,
+            message=f"Successfully connected to ChromaDB. Found {len(collection_names)} collection(s).",
+            heartbeat=heartbeat,
+            collections=collection_names,
+        )
+    except Exception as exc:
+        logger.exception("ChromaDB connection test failed")
+        return ChromaTestResponse(
+            success=False,
+            message=f"Failed to connect to ChromaDB: {exc}",
+            heartbeat=None,
+            collections=None,
+        )
+
+
+@app.post("/admin/chroma/generate-export-command", response_model=ExportCommandResponse)
+async def generate_export_command(
+    request: ExportCommandRequest,
+    app_state: Dict[str, Any] = Depends(get_app_state),
+):
+    """Generate export command with provided parameters."""
+    try:
+        settings: Settings = app_state["settings"]
+        
+        # Build command parts
+        cmd_parts = ["python3", "export-sql-backup-to-chromadb.py"]
+        cmd_parts.append(f"--sql-path {request.sql_path}")
+        cmd_parts.append(f"--collection {request.collection}")
+        cmd_parts.append(f"--embedding-provider {request.embedding_provider}")
+        cmd_parts.append(f"--embedding-model {request.embedding_model}")
+        
+        if request.reset:
+            cmd_parts.append("--reset")
+        
+        # Use provided host/port or fallback to settings
+        host = request.host or settings.chroma_host
+        port = request.port or settings.chroma_port
+        
+        if host != "localhost" or port != 8000:
+            cmd_parts.append(f"--host {host}")
+            cmd_parts.append(f"--port {port}")
+        
+        if request.ssl:
+            cmd_parts.append("--ssl")
+        
+        if request.batch_size != 48:
+            cmd_parts.append(f"--batch-size {request.batch_size}")
+        
+        if request.max_length != 200:
+            cmd_parts.append(f"--max-length {request.max_length}")
+        
+        if request.context_length != 100:
+            cmd_parts.append(f"--context {request.context_length}")
+        
+        command = "   ".join(cmd_parts)
+        
+        description = (
+            f"Export command for collection '{request.collection}' "
+            f"using {request.embedding_provider}/{request.embedding_model}"
+        )
+        
+        return ExportCommandResponse(command=command, description=description)
+    except Exception as exc:
+        logger.exception("Failed to generate export command")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate command: {exc}",
+        ) from exc
+
+
+@app.post("/admin/chroma/generate-uvicorn-command", response_model=UvicornCommandResponse)
+async def generate_uvicorn_command(
+    request: UvicornCommandRequest,
+    app_state: Dict[str, Any] = Depends(get_app_state),
+):
+    """Generate uvicorn command with optional collection override."""
+    try:
+        # Build command
+        cmd_parts = ["uvicorn", "web_service.app:app"]
+        cmd_parts.append(f"--host {request.host}")
+        cmd_parts.append(f"--port {request.port}")
+        
+        if request.reload:
+            cmd_parts.append("--reload")
+        
+        command = " ".join(cmd_parts)
+        
+        description = f"Start web service on {request.host}:{request.port}"
+        
+        env_vars = None
+        if request.collection:
+            env_vars = {"CHROMA_COLLECTION": request.collection}
+            description += f" with collection override: {request.collection}"
+        
+        return UvicornCommandResponse(
+            command=command,
+            description=description,
+            env_vars=env_vars,
+        )
+    except Exception as exc:
+        logger.exception("Failed to generate uvicorn command")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to generate command: {exc}",
+        ) from exc
+
+
+@app.get("/admin/queries", response_model=QueryApprovalsResponse)
+async def get_admin_queries(
+    min_count: int = Query(0, ge=0, description="Minimum search count"),
+    status: Optional[str] = Query(None, description="Filter by status (approved/rejected/pending)"),
+    limit: int = Query(50, ge=1, le=200, description="Maximum number of results"),
+):
+    """Get list of query approvals with filters."""
+    try:
+        queries = get_query_approvals(limit=limit, min_count=min_count, status=status)
+        stats = get_query_stats()
+        
+        query_items = [
+            QueryApprovalItem(
+                id=q["id"],
+                query=q["query"],
+                status=q["status"],
+                approved_at=q["approved_at"],
+                rejected_at=q["rejected_at"],
+                notes=q["notes"],
+                search_count=q["search_count"],
+                last_searched_at=q["last_searched_at"],
+            )
+            for q in queries
+        ]
+        
+        return QueryApprovalsResponse(queries=query_items, stats=stats)
+    except Exception as exc:
+        logger.exception("Failed to get query approvals")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve query approvals: {exc}",
+        ) from exc
+
+
+@app.post("/admin/queries/{query:path}/approve")
+async def approve_admin_query(query: str):
+    """Approve a query."""
+    try:
+        from urllib.parse import unquote
+        decoded_query = unquote(query)
+        approve_query(decoded_query)
+        return {"success": True, "message": f"Query '{decoded_query}' approved"}
+    except Exception as exc:
+        logger.exception("Failed to approve query")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to approve query: {exc}",
+        ) from exc
+
+
+@app.post("/admin/queries/{query:path}/reject")
+async def reject_admin_query(query: str):
+    """Reject a query."""
+    try:
+        from urllib.parse import unquote
+        decoded_query = unquote(query)
+        reject_query(decoded_query)
+        return {"success": True, "message": f"Query '{decoded_query}' rejected"}
+    except Exception as exc:
+        logger.exception("Failed to reject query")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to reject query: {exc}",
+        ) from exc
+
+
+@app.delete("/admin/queries/{query:path}")
+async def delete_admin_query(query: str):
+    """Delete a query from approvals."""
+    try:
+        from urllib.parse import unquote
+        decoded_query = unquote(query)
+        delete_query(decoded_query)
+        return {"success": True, "message": f"Query '{decoded_query}' deleted"}
+    except Exception as exc:
+        logger.exception("Failed to delete query")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete query: {exc}",
+        ) from exc
+
+
+@app.get("/admin/queries/stats", response_model=QueryStatsResponse)
+async def get_admin_query_stats():
+    """Get query statistics."""
+    try:
+        stats = get_query_stats()
+        return QueryStatsResponse(**stats)
+    except Exception as exc:
+        logger.exception("Failed to get query stats")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve query stats: {exc}",
+        ) from exc
+
+
+@app.post("/admin/auth/users", status_code=status.HTTP_201_CREATED)
+async def create_admin_user(request: CreateUserRequest):
+    """Create a new API user."""
+    try:
+        user_id = create_api_user(request.username, request.email)
+        return {"success": True, "user_id": user_id, "message": f"User '{request.username}' created"}
+    except Exception as exc:
+        logger.exception("Failed to create user")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create user: {exc}",
+        ) from exc
+
+
+@app.get("/admin/auth/users", response_model=UsersResponse)
+async def get_admin_users():
+    """Get list of all API users."""
+    try:
+        users = get_all_users()
+        user_items = []
+        for user in users:
+            # Get token count for each user
+            tokens = get_all_tokens(user_id=user["id"])
+            user_items.append(
+                UserItem(
+                    id=user["id"],
+                    username=user["username"],
+                    email=user["email"],
+                    created_at=user["created_at"],
+                    is_active=user["is_active"],
+                    token_count=len(tokens),
+                )
+            )
+        return UsersResponse(users=user_items)
+    except Exception as exc:
+        logger.exception("Failed to get users")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve users: {exc}",
+        ) from exc
+
+
+@app.post("/admin/auth/tokens", status_code=status.HTTP_201_CREATED, response_model=TokenResponse)
+async def create_admin_token(request: CreateTokenRequest):
+    """Create a new API token."""
+    try:
+        from datetime import datetime
+        
+        # Generate secure token
+        token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        
+        expires_at_str = None
+        if request.expires_at:
+            expires_at_str = request.expires_at.isoformat()
+        
+        token_id = create_api_token(
+            user_id=request.user_id,
+            token=token_hash,
+            name=request.name,
+            rate_limit_per_day=request.rate_limit_per_day,
+            expires_at=expires_at_str,
+        )
+        
+        # Get user info
+        users = get_all_users()
+        user = next((u for u in users if u["id"] == request.user_id), None)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"User with ID {request.user_id} not found",
+            )
+        
+        return TokenResponse(
+            id=token_id,
+            user_id=request.user_id,
+            token=token,  # Return plain token only once
+            name=request.name,
+            rate_limit_per_day=request.rate_limit_per_day,
+            created_at=datetime.utcnow(),
+            expires_at=request.expires_at,
+            username=user["username"],
+            email=user["email"],
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to create token")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create token: {exc}",
+        ) from exc
+
+
+@app.get("/admin/auth/tokens", response_model=TokensResponse)
+async def get_admin_tokens(user_id: Optional[int] = Query(None, description="Filter by user ID")):
+    """Get list of all API tokens."""
+    try:
+        tokens = get_all_tokens(user_id=user_id)
+        token_items = []
+        for token in tokens:
+            usage_today = get_token_usage_today(token["id"])
+            token_items.append(
+                TokenItem(
+                    id=token["id"],
+                    user_id=token["user_id"],
+                    name=token["name"],
+                    rate_limit_per_day=token["rate_limit_per_day"],
+                    created_at=token["created_at"],
+                    expires_at=token["expires_at"],
+                    is_active=token["is_active"],
+                    last_used_at=token["last_used_at"],
+                    username=token["username"],
+                    email=token["email"],
+                    usage_today=usage_today,
+                )
+            )
+        return TokensResponse(tokens=token_items)
+    except Exception as exc:
+        logger.exception("Failed to get tokens")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve tokens: {exc}",
+        ) from exc
+
+
+@app.delete("/admin/auth/tokens/{token_id}")
+async def delete_admin_token(token_id: int):
+    """Revoke (deactivate) an API token."""
+    try:
+        revoke_token(token_id)
+        return {"success": True, "message": f"Token #{token_id} revoked"}
+    except Exception as exc:
+        logger.exception("Failed to revoke token")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to revoke token: {exc}",
+        ) from exc
+
+
+@app.get("/admin/auth/tokens/{token_id}/usage", response_model=TokenUsageResponse)
+async def get_admin_token_usage(token_id: int):
+    """Get usage statistics for a specific token."""
+    try:
+        from datetime import datetime, timedelta
+        
+        tokens = get_all_tokens()
+        token = next((t for t in tokens if t["id"] == token_id), None)
+        if not token:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Token with ID {token_id} not found",
+            )
+        
+        usage_today = get_token_usage_today(token_id)
+        rate_limit = token["rate_limit_per_day"]
+        remaining = max(0, rate_limit - usage_today)
+        
+        # Calculate reset time (midnight UTC)
+        now = datetime.utcnow()
+        tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        return TokenUsageResponse(
+            token_id=token_id,
+            usage_today=usage_today,
+            rate_limit=rate_limit,
+            remaining=remaining,
+            reset_at=tomorrow,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to get token usage")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve token usage: {exc}",
+        ) from exc
+
+
+@app.get("/approved-queries", response_model=QueryApprovalsResponse)
+async def get_approved_queries(
+    app_state: Dict[str, Any] = Depends(get_app_state),
+):
+    """Get approved queries for display on main page."""
+    try:
+        settings: Settings = app_state["settings"]
+        
+        if not settings.show_approved_queries:
+            return QueryApprovalsResponse(queries=[], stats={})
+        
+        queries = get_query_approvals(
+            limit=settings.approved_queries_limit,
+            min_count=settings.approved_queries_min_count,
+            status="approved",
+        )
+        stats = get_query_stats()
+        
+        query_items = [
+            QueryApprovalItem(
+                id=q["id"],
+                query=q["query"],
+                status=q["status"],
+                approved_at=q["approved_at"],
+                rejected_at=q["rejected_at"],
+                notes=q["notes"],
+                search_count=q["search_count"],
+                last_searched_at=q["last_searched_at"],
+            )
+            for q in queries
+        ]
+        
+        return QueryApprovalsResponse(queries=query_items, stats=stats)
+    except Exception as exc:
+        logger.exception("Failed to get approved queries")
+        # Don't fail the request, just return empty
+        return QueryApprovalsResponse(queries=[], stats={})
+
+
+@app.get(
+    "/health",
+    response_model=HealthResponse,
+    summary="بررسی وضعیت سرویس",
+    description="""
+    بررسی وضعیت ChromaDB، Redis و کالکشن.
+    
+    این endpoint وضعیت اتصال به ChromaDB (heartbeat)، تعداد مستندات در کالکشن،
+    و وضعیت اتصال به Redis را بررسی می‌کند.
+    """,
+    tags=["health"],
+)
 async def healthcheck(request: Request, app_state: Dict[str, Any] = Depends(get_app_state)):
     settings: Settings = app_state["settings"]
     collection = app_state["collection"]
@@ -573,6 +1133,200 @@ async def healthcheck(request: Request, app_state: Dict[str, Any] = Depends(get_
         collection=collection_component,
         redis=redis_component,
     )
+
+
+async def verify_api_token(
+    request: Request,
+    authorization: Optional[str] = Header(None, alias="Authorization"),
+    app_state: Dict[str, Any] = Depends(get_app_state),
+) -> Optional[Dict[str, Any]]:
+    """Verify API token from Authorization header. Returns token info or None."""
+    settings: Settings = app_state["settings"]
+    
+    if not settings.enable_api_auth:
+        return None
+    
+    # Skip auth for public endpoints
+    public_paths = ["/", "/health", "/docs", "/redoc", "/openapi.json", "/static", "/approved-queries", "/admin"]
+    if any(request.url.path.startswith(path) for path in public_paths):
+        return None
+    
+    if not authorization:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Extract token from "Bearer <token>" format
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authorization format. Use 'Bearer <token>'",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    token = authorization[7:].strip()
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token is required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Hash token for lookup (in production, store hashed tokens)
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    token_info = get_api_token(token_hash)
+    
+    if not token_info:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Check expiration
+    if token_info["expires_at"]:
+        from datetime import datetime
+        if datetime.utcnow() > token_info["expires_at"]:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has expired",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+    
+    return token_info
+
+
+async def check_rate_limit(
+    token_info: Optional[Dict[str, Any]] = Depends(verify_api_token),
+) -> None:
+    """Check rate limit for API token."""
+    if not token_info:
+        return
+    
+    token_id = token_info["id"]
+    rate_limit = token_info["rate_limit_per_day"]
+    
+    usage_today = get_token_usage_today(token_id)
+    
+    if usage_today >= rate_limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Rate limit exceeded. Limit: {rate_limit} requests per day",
+            headers={
+                "X-RateLimit-Limit": str(rate_limit),
+                "X-RateLimit-Remaining": "0",
+                "Retry-After": "86400",  # 24 hours in seconds
+            },
+        )
+    
+    # Increment usage
+    increment_token_usage(token_id)
+    
+    # Add rate limit headers to response
+    remaining = rate_limit - usage_today - 1
+    # This will be set in middleware
+
+
+@app.middleware("http")
+async def auth_and_rate_limit_middleware(request: Request, call_next):
+    """Middleware for authentication and rate limiting."""
+    settings = get_settings()
+    
+    # Skip for public endpoints
+    public_paths = ["/", "/health", "/docs", "/redoc", "/openapi.json", "/static", "/approved-queries", "/admin"]
+    if any(request.url.path.startswith(path) for path in public_paths):
+        response = await call_next(request)
+        return response
+    
+    if settings.enable_api_auth:
+        try:
+            # Verify token
+            authorization = request.headers.get("Authorization")
+            if not authorization:
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "Authorization header required"},
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            
+            if not authorization.startswith("Bearer "):
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "Invalid authorization format. Use 'Bearer <token>'"},
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            
+            token = authorization[7:].strip()
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            token_info = get_api_token(token_hash)
+            
+            if not token_info:
+                return JSONResponse(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    content={"detail": "Invalid or expired token"},
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            
+            # Check expiration
+            if token_info["expires_at"]:
+                from datetime import datetime
+                if datetime.utcnow() > token_info["expires_at"]:
+                    return JSONResponse(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        content={"detail": "Token has expired"},
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+            
+            # Check rate limit
+            token_id = token_info["id"]
+            rate_limit = token_info["rate_limit_per_day"]
+            usage_today = get_token_usage_today(token_id)
+            
+            if usage_today >= rate_limit:
+                return JSONResponse(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    content={"detail": f"Rate limit exceeded. Limit: {rate_limit} requests per day"},
+                    headers={
+                        "X-RateLimit-Limit": str(rate_limit),
+                        "X-RateLimit-Remaining": "0",
+                        "Retry-After": "86400",
+                    },
+                )
+            
+            # Increment usage
+            increment_token_usage(token_id)
+            
+            # Process request
+            response = await call_next(request)
+            
+            # Add rate limit headers
+            remaining = rate_limit - usage_today - 1
+            response.headers["X-RateLimit-Limit"] = str(rate_limit)
+            response.headers["X-RateLimit-Remaining"] = str(max(0, remaining))
+            
+            # Calculate reset time (midnight UTC)
+            from datetime import datetime, timedelta
+            now = datetime.utcnow()
+            tomorrow = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+            reset_timestamp = int(tomorrow.timestamp())
+            response.headers["X-RateLimit-Reset"] = str(reset_timestamp)
+            
+            return response
+            
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.exception("Auth middleware error")
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={"detail": "Internal server error"},
+            )
+    else:
+        # Auth disabled, just process request
+        response = await call_next(request)
+        return response
 
 
 @app.middleware("http")

@@ -53,6 +53,15 @@ class Settings(BaseSettings):
     enable_pagination: bool = Field(default=True, alias="ENABLE_PAGINATION")
     max_estimated_results: PositiveInt = Field(default=1000, alias="MAX_ESTIMATED_RESULTS")
 
+    # Query approvals settings
+    show_approved_queries: bool = Field(default=True, alias="SHOW_APPROVED_QUERIES")
+    approved_queries_min_count: int = Field(default=4, ge=0, alias="APPROVED_QUERIES_MIN_COUNT")
+    approved_queries_limit: PositiveInt = Field(default=10, alias="APPROVED_QUERIES_LIMIT")
+
+    # API Authentication settings
+    enable_api_auth: bool = Field(default=False, alias="ENABLE_API_AUTH")
+    default_rate_limit_per_day: PositiveInt = Field(default=1000, alias="DEFAULT_RATE_LIMIT_PER_DAY")
+
     model_config = SettingsConfigDict(
         env_file=_DEFAULT_ENV_PATH if _DEFAULT_ENV_PATH.exists() else None,
         env_file_encoding="utf-8",
