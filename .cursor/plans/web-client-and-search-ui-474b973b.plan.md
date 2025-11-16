@@ -1,4 +1,4 @@
-<!-- 474b973b-ab78-42a3-a9c3-41baf5a6ee7f 72e6c8d9-4120-4a30-8dd3-80dc0caa9228 -->
+<!-- 474b973b-ab78-42a3-a9c3-41baf5a6ee7f 71380655-fcce-4433-8451-2a81c6b54d7a -->
 # Job Tracking، Pagination و نمایش آمار جستجو
 
 ## 1. Job Tracking در Export Script
@@ -171,7 +171,7 @@
 5. `export-sql-chromadb/web_service/app.py` - admin endpoints و pagination logic
 6. `export-sql-chromadb/web_service/static/admin.html` - صفحه admin panel (جدید)
 7. `export-sql-chromadb/web_service/static/index.html` - pagination controls
-8. `export-sql-chromadb/.env.example` - متغیرهای جدید
+8. `export-sql-chromadb/.env.example` - ایجاد فایل جدید با تمام متغیرها
 9. `export-sql-chromadb/tests/test_database.py` - تست‌های database (جدید)
 10. `export-sql-chromadb/tests/test_app.py` - تست‌های API (جدید)
 11. `export-sql-chromadb/tests/__init__.py` - package init (جدید)
@@ -184,18 +184,3 @@
 - Admin panel باید responsive و user-friendly باشد
 - تمام feature flags باید در `.env.example` مستند شوند
 - تست‌ها باید comprehensive باشند و edge cases را پوشش دهند
-
-### To-dos
-
-- [ ] در database.py: ایجاد جدول export_jobs و توابع create_export_job, update_export_job, get_export_jobs, get_export_job
-- [ ] در export-sql-backup-to-chromadb.py: ثبت job در ابتدا و به‌روزرسانی در انتها (موفقیت/شکست)
-- [ ] در config.py: اضافه کردن ENABLE_TOTAL_DOCUMENTS, ENABLE_ESTIMATED_RESULTS, ENABLE_PAGINATION, MAX_ESTIMATED_RESULTS
-- [ ] در schemas.py: اضافه کردن PaginationInfo model و فیلدهای page/page_size به SearchRequest و pagination به SearchResponse
-- [ ] در schemas.py: اضافه کردن ExportJobItem, ExportJobDetail, ExportJobsResponse models
-- [ ] در app.py: پیاده‌سازی pagination logic در search_documents با توجه به feature flags
-- [ ] در app.py: اضافه کردن GET /admin/jobs و GET /admin/jobs/{id} endpoints
-- [ ] ایجاد admin.html با جدول jobs، pagination controls و filter by status
-- [ ] در index.html: اضافه کردن pagination controls و به‌روزرسانی performSearch برای پشتیبانی از page
-- [ ] ایجاد یا به‌روزرسانی .env.example با تمام feature flags و توضیحات
-- [ ] ایجاد tests/test_database.py با تست‌های job tracking functions
-- [ ] ایجاد tests/test_app.py با تست‌های admin endpoints و pagination
