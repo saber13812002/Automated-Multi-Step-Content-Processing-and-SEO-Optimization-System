@@ -397,8 +397,20 @@ def get_collection(client, name: str, metadata: dict, reset: bool):
             pass
 
     try:
-        return client.get_collection(name)
+        # Try to get existing collection
+        existing_collection = client.get_collection(name)
+        # If we get here, collection exists and reset=False
+        # Append timestamp to avoid conflict
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        new_name = f"{name}_{timestamp}"
+        print(f"⚠️  Warning: Collection '{name}' already exists. Using '{new_name}' instead.", flush=True)
+        try:
+            return client.get_collection(new_name)
+        except NotFoundError:
+            return client.create_collection(name=new_name, metadata=metadata)
     except NotFoundError:
+        # Collection doesn't exist, create it with original name
         return client.create_collection(name=name, metadata=metadata)
 
 
