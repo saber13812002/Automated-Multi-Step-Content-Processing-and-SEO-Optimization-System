@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import hashlib
 import logging
+import secrets
 import time
 from contextlib import asynccontextmanager
 from functools import partial
 from typing import Any, Dict, List, Optional
 
 import anyio
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
