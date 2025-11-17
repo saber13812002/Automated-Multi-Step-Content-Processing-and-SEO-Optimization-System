@@ -1,0 +1,34 @@
+[Unit]
+Description=Chroma Search API Service (Uvicorn with reload)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/root/saberprojects/automated-Multi-Step-Content-Processing-and-SEO-Optimization-System/export-sql-chromadb
+Environment="PATH=/root/saberprojects/automated-Multi-Step-Content-Processing-and-SEO-Optimization-System/export-sql-chromadb/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+
+# اجرای سرویس با uvicorn و reload
+ExecStart=/root/saberprojects/automated-Multi-Step-Content-Processing-and-SEO-Optimization-System/export-sql-chromadb/.venv/bin/uvicorn web_service.app:app --host 0.0.0.0 --port 8080 --reload
+
+# در صورت خطا، سرویس را مجدداً راه‌اندازی کن
+Restart=always
+RestartSec=10
+
+# محدودیت‌های امنیتی
+NoNewPrivileges=true
+PrivateTmp=true
+
+# لاگ‌ها
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=chroma-search-api-uvicorn
+
+# محدودیت منابع (اختیاری)
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
