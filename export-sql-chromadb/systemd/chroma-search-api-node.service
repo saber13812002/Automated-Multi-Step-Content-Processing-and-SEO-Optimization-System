@@ -1,0 +1,36 @@
+[Unit]
+Description=Chroma Search API Service (Node.js/Express)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/project/apps/chroma_search_api
+Environment="PATH=/usr/bin:/usr/local/bin:/bin"
+Environment="NODE_ENV=production"
+EnvironmentFile=/path/to/project/apps/chroma_search_api/.env
+
+# اجرای سرویس با Node.js
+ExecStart=/usr/bin/node dist/index.js
+
+# در صورت خطا، سرویس را مجدداً راه‌اندازی کن
+Restart=always
+RestartSec=10
+
+# محدودیت‌های امنیتی
+NoNewPrivileges=true
+PrivateTmp=true
+
+# لاگ‌ها
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=chroma-search-api-node
+
+# محدودیت منابع (اختیاری)
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+

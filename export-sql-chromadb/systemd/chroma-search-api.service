@@ -1,0 +1,35 @@
+[Unit]
+Description=Chroma Search API Service (FastAPI)
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/project/export-sql-chromadb
+Environment="PATH=/path/to/project/export-sql-chromadb/.venv/bin:/usr/local/bin:/usr/bin:/bin"
+EnvironmentFile=/path/to/project/export-sql-chromadb/.env
+
+# اجرای سرویس با uvicorn
+ExecStart=/path/to/project/export-sql-chromadb/.venv/bin/uvicorn web_service.app:app --host 0.0.0.0 --port 8080
+
+# در صورت خطا، سرویس را مجدداً راه‌اندازی کن
+Restart=always
+RestartSec=10
+
+# محدودیت‌های امنیتی
+NoNewPrivileges=true
+PrivateTmp=true
+
+# لاگ‌ها
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=chroma-search-api
+
+# محدودیت منابع (اختیاری)
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
