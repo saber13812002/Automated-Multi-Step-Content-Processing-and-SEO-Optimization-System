@@ -21,8 +21,15 @@ sudo apt install python3.12-venv
 python3 -m venv .venv
 source .venv/bin/activate          # در لینوکس/مک
 
+# نصب dependencies اصلی (برای web service و export scripts)
+pip install --upgrade pip
+pip install -r web_service/requirements.txt
+
+# نصب build tools (اختیاری - فقط برای development)
 pip install -r requirements.txt
 ```
+
+> **نکته مهم:** فایل `requirements.txt` در root فقط شامل build tools است. برای اجرای سرویس وب یا اسکریپت‌های export، باید `web_service/requirements.txt` را نصب کنید.
 
 ## پیکربندی متغیرهای محیطی
 
@@ -102,9 +109,15 @@ python verify_chroma_export.py \
 cd export-sql-chromadb
 python -m venv .venv
 .venv\Scripts\activate  # یا source .venv/bin/activate
+pip install --upgrade pip
 pip install -r web_service/requirements.txt
 uvicorn web_service.app:app --reload --host 0.0.0.0 --port 8080
 ```
+
+> **نکته:** اگر خطای `ModuleNotFoundError` دریافت کردید (مثلاً `anyio` یا سایر ماژول‌ها)، مطمئن شوید که:
+> 1. Virtual environment فعال است (`which python` باید مسیر `.venv` را نشان دهد)
+> 2. همه dependencies از `web_service/requirements.txt` نصب شده‌اند
+> 3. در صورت نیاز، `pip install -r web_service/requirements.txt` را دوباره اجرا کنید
 
 سرویس از همان `.env` استفاده می‌کند. مسیرها:
 

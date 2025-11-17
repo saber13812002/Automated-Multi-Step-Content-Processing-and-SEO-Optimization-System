@@ -62,7 +62,8 @@ if [ ! -d "$VENV_PATH" ]; then
     echo -e "  cd $PROJECT_PATH"
     echo -e "  python3 -m venv .venv"
     echo -e "  source .venv/bin/activate"
-    echo -e "  pip install -r requirements.txt"
+    echo -e "  pip install --upgrade pip"
+    echo -e "  pip install -r web_service/requirements.txt"
     read -p "آیا می‌خواهید ادامه دهید؟ (y/n) " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -73,12 +74,25 @@ fi
 # بررسی وجود uvicorn در venv
 UVICORN_PATH="$VENV_PATH/bin/uvicorn"
 if [ ! -f "$UVICORN_PATH" ]; then
-    echo -e "${RED}خطا: uvicorn در virtual environment موجود نیست${NC}"
-    echo -e "${YELLOW}لطفاً uvicorn را نصب کنید:${NC}"
+    echo -e "${YELLOW}هشدار: uvicorn در virtual environment موجود نیست${NC}"
+    echo -e "${YELLOW}در حال نصب dependencies از web_service/requirements.txt...${NC}"
     echo -e "  cd $PROJECT_PATH"
     echo -e "  source .venv/bin/activate"
-    echo -e "  pip install uvicorn"
-    exit 1
+    echo -e "  pip install --upgrade pip"
+    echo -e "  pip install -r web_service/requirements.txt"
+    
+    # تلاش برای نصب خودکار
+    cd "$PROJECT_PATH"
+    source "$VENV_PATH/bin/activate"
+    pip install --upgrade pip
+    pip install -r web_service/requirements.txt
+    
+    # بررسی مجدد
+    if [ ! -f "$UVICORN_PATH" ]; then
+        echo -e "${RED}خطا: نصب dependencies ناموفق بود. لطفاً به صورت دستی نصب کنید.${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}✅ Dependencies با موفقیت نصب شدند${NC}"
 fi
 
 echo -e "\n${GREEN}در حال نصب سرویس...${NC}"

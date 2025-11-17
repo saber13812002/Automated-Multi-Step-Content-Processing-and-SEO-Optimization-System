@@ -286,6 +286,36 @@ TypeError: unhashable type: 'Settings'
 2. کد را از repository جدید pull کنید
 3. یا به‌صورت دستی `@lru_cache` را از توابع در `web_service/clients.py` حذف کنید
 
+### خطای `ModuleNotFoundError: No module named 'anyio'`
+
+**مشکل:**
+```
+ModuleNotFoundError: No module named 'anyio'
+```
+
+**راه‌حل:**
+این خطا معمولاً به این دلیل است که:
+1. Dependencies از `web_service/requirements.txt` نصب نشده‌اند
+2. Virtual environment فعال نیست
+3. نسخه نادرست `anyio` نصب شده (مثلاً `anyio==3.7.0` به جای `anyio>=4.6.2`)
+
+**راه‌حل:**
+```bash
+# 1. مطمئن شوید venv فعال است
+which python  # باید مسیر .venv را نشان دهد
+
+# 2. نصب مجدد همه dependencies
+cd export-sql-chromadb
+source .venv/bin/activate  # یا .venv\Scripts\activate در ویندوز
+pip install --upgrade pip
+pip install -r web_service/requirements.txt
+
+# 3. بررسی نصب
+pip list | grep anyio  # باید anyio>=4.6.2 باشد
+```
+
+> **نکته مهم:** فایل `requirements.txt` در root فقط شامل build tools است. برای اجرای سرویس وب، باید `web_service/requirements.txt` را نصب کنید.
+
 ### خطای `pip not found`
 
 **مشکل:**

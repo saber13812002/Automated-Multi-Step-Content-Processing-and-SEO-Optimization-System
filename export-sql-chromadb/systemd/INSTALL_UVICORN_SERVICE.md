@@ -9,6 +9,19 @@
 3. Virtual environment باید در `.venv` موجود باشد
 4. تمام dependencies باید نصب شده باشند
 
+### نصب Dependencies
+
+قبل از نصب سرویس، مطمئن شوید که همه dependencies نصب شده‌اند:
+
+```bash
+cd /root/saberprojects/automated-Multi-Step-Content-Processing-and-SEO-Optimization-System/export-sql-chromadb
+source .venv/bin/activate
+pip install --upgrade pip
+pip install -r web_service/requirements.txt
+```
+
+> **نکته مهم:** فایل `requirements.txt` در root فقط شامل build tools است. برای اجرای سرویس وب، باید `web_service/requirements.txt` را نصب کنید.
+
 ## مراحل نصب
 
 ### 1. کپی فایل سرویس
@@ -112,6 +125,20 @@ curl http://localhost:8080/docs
    ```bash
    cd /root/saberprojects/automated-Multi-Step-Content-Processing-and-SEO-Optimization-System/export-sql-chromadb
    source .venv/bin/activate
+   
+   # اگر dependencies نصب نشده‌اند:
+   pip install -r web_service/requirements.txt
+   
+   # سپس تست:
    uvicorn web_service.app:app --host 0.0.0.0 --port 8080 --reload
+   ```
+
+4. اگر خطای `ModuleNotFoundError` دریافت کردید (مثلاً `anyio`):
+   ```bash
+   # مطمئن شوید venv فعال است
+   which python  # باید مسیر .venv را نشان دهد
+   
+   # نصب مجدد dependencies
+   pip install -r web_service/requirements.txt
    ```
 
