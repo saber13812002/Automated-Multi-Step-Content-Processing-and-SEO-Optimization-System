@@ -1,4 +1,4 @@
-<!-- 474b973b-ab78-42a3-a9c3-41baf5a6ee7f 454d0df5-699b-4ec3-8065-8e4745f2b102 -->
+<!-- 474b973b-ab78-42a3-a9c3-41baf5a6ee7f 8ab6acf7-97c1-4b10-a09b-8d223f16c97f -->
 # پلان پیاده‌سازی: بهبود Admin Panel و Authentication
 
 ## 1. Admin Panel - باکس تنظیمات ChromaDB
@@ -17,6 +17,7 @@
 - `ExportCommandRequest`: پارامترهای تولید دستور export
 - `ExportCommandResponse`: دستور تولید شده
 - `UvicornCommandRequest`: پارامترهای تولید دستور uvicorn
+- `UvicornCommandResponse`: دستور uvicorn تولید شده
 
 ### 1.3. UI (`admin.html`)
 
@@ -44,12 +45,13 @@
 ### 2.2. Database Functions (`database.py`)
 
 - `init_query_approvals_table()`: ایجاد جدول
-- `get_query_approvals(limit, min_count)`: دریافت query‌های تایید شده
+- `get_query_approvals(limit, min_count, status)`: دریافت query‌های تایید شده
 - `approve_query(query)`: تایید query
 - `reject_query(query)`: رد query
 - `delete_query(query)`: حذف query
 - `get_query_stats()`: آمار query‌ها (تکرار، تایید شده، رد شده)
 - `update_query_search_count(query)`: به‌روزرسانی تعداد تکرار
+- به‌روزرسانی `save_search()` برای افزایش search_count
 
 ### 2.3. API Endpoints (`app.py`)
 
@@ -58,6 +60,7 @@
 - `POST /admin/queries/{query}/reject`: رد query
 - `DELETE /admin/queries/{query}`: حذف query
 - `GET /admin/queries/stats`: آمار query‌ها
+- `GET /approved-queries`: دریافت query‌های تایید شده برای نمایش در صفحه اصلی
 
 ### 2.4. Configuration (`config.py`)
 
@@ -65,13 +68,7 @@
 - `APPROVED_QUERIES_MIN_COUNT`: int (پیش‌فرض: 4) - حداقل تعداد تکرار برای نمایش
 - `APPROVED_QUERIES_LIMIT`: int (پیش‌فرض: 10) - تعداد query‌های نمایش داده شده
 
-### 2.5. Integration با Search (`app.py`)
-
-- در `save_search()`: به‌روزرسانی `query_approvals` (افزایش search_count)
-- در `GET /` (index.html): نمایش query‌های تایید شده در بالای صفحه
-- در `POST /search`: بررسی وضعیت query (اگر rejected باشد، warning)
-
-### 2.6. UI (`admin.html`)
+### 2.5. UI (`admin.html`)
 
 - باکس "مدیریت سوابق جستجو" با:
 - لیست query‌ها با status badges
@@ -80,7 +77,7 @@
 - نمایش تعداد تکرار و آخرین جستجو
 - آمار کلی (تایید شده، رد شده، pending)
 
-### 2.7. UI (`index.html`)
+### 2.6. UI (`index.html`)
 
 - بخش "سوابق جستجوی تایید شده" در بالای صفحه
 - نمایش query‌های تایید شده با تعداد تکرار بالا
@@ -94,14 +91,9 @@
 - اضافه کردن `tags` برای دسته‌بندی
 - اضافه کردن `responses` با مثال‌های واقعی
 - اضافه کردن `summary` برای هر endpoint
+- بهبود `FastAPI()` initialization با `description` و `tags_metadata`
 
-### 3.2. Custom Documentation Page
-
-- `GET /api-docs`: صفحه HTML سفارشی برای مستندات API
-- یا استفاده از `/docs` (Swagger UI) و `/redoc` (ReDoc) که FastAPI به صورت خودکار می‌سازد
-- اضافه کردن examples و defaults در schemas
-
-### 3.3. API Documentation File
+### 3.2. API Documentation File
 
 - ایجاد `API_DOCUMENTATION.md` با:
 - لیست تمام endpoints
@@ -109,6 +101,7 @@
 - مثال‌های request/response
 - Authentication requirements
 - Rate limiting info
+- مثال‌های استفاده با Python و JavaScript
 
 ## 4. سیستم Authentication و Rate Limiting
 
@@ -147,21 +140,26 @@
 - `get_api_token(token_hash)`: دریافت توکن
 - `increment_token_usage(token_id)`: افزایش تعداد استفاده
 - `get_token_usage_today(token_id)`: دریافت استفاده امروز
-- `reset_daily_usage()`: ریست استفاده روزانه (cron job)
 - `get_all_tokens(user_id)`: لیست توکن‌های یک کاربر
 - `revoke_token(token_id)`: غیرفعال کردن توکن
+- `get_all_users()`: لیست تمام کاربران
 
 ### 4.3. Authentication Middleware (`app.py`)
 
-- `verify_api_token(request)`: Dependency برای بررسی توکن
-- `check_rate_limit(token_id)`: بررسی rate limit
-- اعمال middleware به endpoints (به جز `/`, `/health`, `/docs`, `/admin`)
+- `auth_and_rate_limit_middleware`: Middleware برای بررسی توکن و rate limit
+- بررسی Bearer Token در header `Authorization`
+- Hash کردن token با SHA-256 برای lookup
+- بررسی expiration date
+- بررسی rate limit (تعداد درخواست در 24 ساعت گذشته)
+- برگرداندن `429 Too Many Requests` در صورت تجاوز
+- Header `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
+- معاف کردن public endpoints از authentication
 
 ### 4.4. API Endpoints (`app.py`)
 
 - `POST /admin/auth/users`: ایجاد کاربر جدید
 - `GET /admin/auth/users`: لیست کاربران
-- `POST /admin/auth/tokens`: ایجاد توکن جدید
+- `POST /admin/auth/tokens`: ایجاد توکن جدید (با تولید token با `secrets.token_urlsafe`)
 - `GET /admin/auth/tokens`: لیست توکن‌ها
 - `DELETE /admin/auth/tokens/{token_id}`: حذف/غیرفعال کردن توکن
 - `GET /admin/auth/tokens/{token_id}/usage`: آمار استفاده توکن
@@ -172,9 +170,10 @@
 - لیست کاربران
 - فرم ایجاد کاربر جدید
 - لیست توکن‌ها برای هر کاربر
-- فرم ایجاد توکن (با تنظیمات rate limit)
-- نمایش آمار استفاده (امروز، این ماه)
+- فرم ایجاد توکن (با تنظیمات rate limit و expiration)
+- نمایش آمار استفاده (امروز، باقی‌مانده)
 - دکمه revoke برای توکن‌ها
+- نمایش توکن فقط یک بار پس از ایجاد
 
 ### 4.6. Configuration (`config.py`)
 
@@ -183,9 +182,9 @@
 
 ### 4.7. Rate Limiting Logic
 
-- استفاده از Redis برای tracking (اگر موجود باشد) یا SQLite
+- استفاده از SQLite برای tracking
 - بررسی تعداد درخواست در 24 ساعت گذشته
-- برگرداندن `429 Too Many Requests` در صورت تجاوز
+- ریست روزانه در نیمه‌شب UTC
 - Header `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`
 
 ## 5. فایل‌های تغییر یافته/جدید
@@ -197,7 +196,7 @@
 5. `export-sql-chromadb/web_service/static/admin.html` - باکس‌های جدید
 6. `export-sql-chromadb/web_service/static/index.html` - نمایش query‌های تایید شده
 7. `export-sql-chromadb/API_DOCUMENTATION.md` - مستندات API (جدید)
-8. `export-sql-chromadb/.env.example` - متغیرهای جدید
+8. `export-sql-chromadb/.env.example` - متغیرهای جدید (نیاز به به‌روزرسانی)
 
 ## 6. ترتیب پیاده‌سازی
 
@@ -211,8 +210,10 @@
 - تمام تنظیمات از طریق environment variables قابل کنترل است
 - پیش‌فرض‌ها طوری تنظیم شده‌اند که backward compatible باشند
 - Authentication به صورت optional است (می‌توان غیرفعال کرد)
-- Rate limiting با Redis (اگر موجود باشد) یا SQLite پیاده‌سازی می‌شود
+- Rate limiting با SQLite پیاده‌سازی می‌شود
 - تمام endpoint‌ها باید مستندات کامل داشته باشند
+- Admin endpoints از authentication معاف هستند
+- Public endpoints (/, /health, /docs, /approved-queries) از authentication معاف هستند
 
 ### To-dos
 
