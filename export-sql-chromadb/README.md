@@ -65,6 +65,27 @@ python3 export-sql-backup-to-chromadb.py   --sql-path book_pages_mini.sql   --co
 - اگر از ChromaDB توکار (Persist Client) استفاده می‌کنید، گزینه `--persist-directory ./chroma-store` را اضافه کنید.
 - در صورت نبود کلید OpenAI می‌توانید `--embedding-provider none` را انتخاب کنید؛ در این حالت فرض می‌شود سمت سرور امبدینگ تولید می‌شود.
 
+### استفاده از مدل‌های HuggingFace
+
+این اسکریپت از مدل‌های HuggingFace (مثل ParsBERT، AraBERT) نیز پشتیبانی می‌کند. برای جزئیات کامل، مثال‌ها و پیشنهادات مدل‌ها، به [HUGGINGFACE_MODELS.md](HUGGINGFACE_MODELS.md) مراجعه کنید.
+
+**مثال سریع با ParsBERT:**
+
+```bash
+python export-sql-backup-to-chromadb.py \
+  --sql-path book_pages.sql \
+  --collection book_pages_parsbert \
+  --embedding-provider huggingface \
+  --embedding-model "HooshvareLab/bert-base-parsbert-uncased" \
+  --batch-size 32
+```
+
+**نصب وابستگی‌های HuggingFace:**
+
+```bash
+pip install transformers torch numpy
+```
+
 ### منطق قطعه‌بندی
 
 1. هر رکورد صفحه از SQL خوانده و HTML آن به متن ساده تبدیل می‌شود.
