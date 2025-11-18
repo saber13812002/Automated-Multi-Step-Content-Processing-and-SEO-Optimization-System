@@ -35,6 +35,18 @@ try:
 except ImportError:  # pragma: no cover - fallback when utils ref changes
     embedding_functions = None  # type: ignore
 
+try:
+    from transformers import AutoTokenizer, AutoModel
+    import torch
+    import numpy as np
+    TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    TRANSFORMERS_AVAILABLE = False
+    AutoTokenizer = None  # type: ignore
+    AutoModel = None  # type: ignore
+    torch = None  # type: ignore
+    np = None  # type: ignore
+
 
 SQL_INSERT_PREFIX = "INSERT INTO `book_pages` VALUES "
 
@@ -339,11 +351,73 @@ def build_segments(
     return segments
 
 
+class HuggingFaceEmbedder:
+    """Custom embedding function for HuggingFace models like ParsBERT, AraBERT, etc."""
+    
+    def __init__(self, model_name: str, device: Optional[str] = None):
+        if not TRANSFORMERS_AVAILABLE:
+            raise RuntimeError(
+                "transformers library is required for HuggingFace embeddings. "
+                "Install it with: pip install transformers torch"
+            )
+        
+        self.model_name = model_name
+        # Handle empty string as None, then auto-detect device if None
+        if device and device.strip():
+            self.device = device
+        else:
+            self.device = "cuda" if torch is not None and torch.cuda.is_available() else "cpu"
+        
+        print(f"🔄 در حال بارگذاری مدل HuggingFace: {model_name}...", flush=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModel.from_pretrained(model_name)
+        self.model.to(self.device)
+        self.model.eval()  # Set to evaluation mode
+        print(f"✅ مدل بارگذاری شد (device: {self.device})", flush=True)
+    
+    def __call__(self, texts: Sequence[str]) -> List[List[float]]:
+        """Generate embeddings for a batch of texts."""
+        if not texts:
+            return []
+        
+        # Tokenize texts
+        encoded = self.tokenizer(
+            texts,
+            padding=True,
+            truncation=True,
+            max_length=512,  # Most BERT models have max_length of 512
+            return_tensors="pt"
+        )
+        
+        # Move to device
+        encoded = {k: v.to(self.device) for k, v in encoded.items()}
+        
+        # Generate embeddings
+        with torch.no_grad():
+            outputs = self.model(**encoded)
+            # Use mean pooling of the last hidden state
+            # Shape: (batch_size, seq_len, hidden_size)
+            embeddings = outputs.last_hidden_state
+            # Mean pooling: average over sequence length dimension
+            attention_mask = encoded["attention_mask"]
+            # Expand attention mask to match embedding dimensions
+            mask_expanded = attention_mask.unsqueeze(-1).expand(embeddings.size()).float()
+            # Sum embeddings and divide by sum of mask (mean pooling)
+            sum_embeddings = torch.sum(embeddings * mask_expanded, dim=1)
+            sum_mask = torch.clamp(mask_expanded.sum(dim=1), min=1e-9)
+            embeddings = sum_embeddings / sum_mask
+        
+        # Convert to list of lists
+        embeddings_list = embeddings.cpu().numpy().tolist()
+        return embeddings_list
+
+
 class EmbeddingProvider:
-    def __init__(self, provider: str, model: str, api_key: Optional[str]) -> None:
+    def __init__(self, provider: str, model: str, api_key: Optional[str], device: Optional[str] = None) -> None:
         self.provider = provider
         self.model = model
         self.api_key = api_key
+        self.device = device
         self.embedding_function = None
 
         if provider == "openai":
@@ -355,10 +429,12 @@ class EmbeddingProvider:
                 api_key=api_key,
                 model_name=model,
             )
+        elif provider == "huggingface":
+            self.embedding_function = HuggingFaceEmbedder(model_name=model, device=device)
         elif provider == "none":
             self.embedding_function = None
         else:
-            raise ValueError(f"Unsupported embedding provider: {provider}")
+            raise ValueError(f"Unsupported embedding provider: {provider}. Supported: openai, huggingface, none")
 
     def embed(self, texts: Sequence[str]) -> Optional[Sequence[Sequence[float]]]:
         if not texts:
@@ -464,10 +540,16 @@ def export_to_chroma(args: argparse.Namespace, job_id: Optional[int] = None) -> 
         reset=args.reset,
     )
 
+    # Handle device: convert empty string to None
+    device = getattr(args, 'device', None)
+    if device and not device.strip():
+        device = None
+    
     embedding_provider = EmbeddingProvider(
         provider=args.embedding_provider,
         model=args.embedding_model,
         api_key=args.openai_api_key,
+        device=device,
     )
 
     processed_records = 0
@@ -627,19 +709,33 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--embedding-provider",
-        choices=["openai", "none"],
+        choices=["openai", "huggingface", "none"],
         default=os.getenv("EMBEDDING_PROVIDER", "openai"),
-        help="Embedding backend to use for generating vectors.",
+        help="Embedding backend to use for generating vectors. Options: openai, huggingface, none",
     )
     parser.add_argument(
         "--embedding-model",
         default=os.getenv("EMBEDDING_MODEL", "text-embedding-3-small"),
-        help="Embedding model identifier.",
+        help=(
+            "Embedding model identifier. "
+            "For OpenAI: e.g., 'text-embedding-3-small', 'text-embedding-3-large'. "
+            "For HuggingFace: e.g., 'HooshvareLab/bert-base-parsbert-uncased' (ParsBERT), "
+            "'aubmindlab/bert-base-arabertv2' (AraBERT), or any other HuggingFace model."
+        ),
     )
     parser.add_argument(
         "--openai-api-key",
         default=os.getenv("OPENAI_API_KEY", ""),
-        help="OpenAI API key. Overrides environment variable if provided.",
+        help="OpenAI API key. Overrides environment variable if provided. Required for OpenAI provider.",
+    )
+    parser.add_argument(
+        "--device",
+        choices=["cpu", "cuda"],
+        default=os.getenv("EMBEDDING_DEVICE", ""),
+        help=(
+            "Device to use for HuggingFace models (cpu or cuda). "
+            "If not specified, automatically uses CUDA if available, otherwise CPU."
+        ),
     )
     return parser.parse_args(argv)
 
