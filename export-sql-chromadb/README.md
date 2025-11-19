@@ -21,6 +21,7 @@
 - [systemd/INSTALL_UVICORN_SERVICE.md](systemd/INSTALL_UVICORN_SERVICE.md) - راهنمای نصب Systemd Service
 - [README.web_service.md](README.web_service.md) - راهنمای کامل Web Service
 - [HUGGINGFACE_MODELS.md](HUGGINGFACE_MODELS.md) - راهنمای استفاده از مدل‌های HuggingFace
+- [IMPROVEMENTS.md](IMPROVEMENTS.md) - پیشنهادات بهبود و بهینه‌سازی سیستم
 
 ## پیش‌نیازها
 
