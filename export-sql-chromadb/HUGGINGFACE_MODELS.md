@@ -105,7 +105,7 @@ python export-sql-backup-to-chromadb.py \
 ### مثال 4: mBERT (چندزبانه - برای هر دو زبان)
 
 ```bash
-python export-sql-backup-to-chromadb.py \
+python3 export-sql-backup-to-chromadb.py \
   --sql-path book_pages.sql \
   --collection book_pages_mbert \
   --embedding-provider huggingface \
@@ -119,7 +119,7 @@ python export-sql-backup-to-chromadb.py \
 ### مثال 5: XLM-RoBERTa (چندزبانه - عملکرد بهتر)
 
 ```bash
-python export-sql-backup-to-chromadb.py \
+python3 export-sql-backup-to-chromadb.py \
   --sql-path book_pages.sql \
   --collection book_pages_xlmr \
   --embedding-provider huggingface \
@@ -133,7 +133,7 @@ python export-sql-backup-to-chromadb.py \
 ### مثال 6: استفاده از CPU (اگر GPU ندارید)
 
 ```bash
-python export-sql-backup-to-chromadb.py \
+python3 export-sql-backup-to-chromadb.py \
   --sql-path book_pages.sql \
   --collection book_pages_parsbert_cpu \
   --embedding-provider huggingface \
