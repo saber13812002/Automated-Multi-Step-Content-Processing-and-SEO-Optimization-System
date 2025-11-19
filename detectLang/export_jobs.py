@@ -11,18 +11,30 @@ def fetch_segments(
     source_filter: Optional[str],
     lang_filter: Optional[str],
 ) -> List[Dict[str, Any]]:
-    q = "SELECT id, source_audio, segment_audio, language, start_time, end_time, text FROM segments"
+    q = """
+        SELECT
+            ls.id,
+            af.source_path AS source_audio,
+            ls.segment_audio,
+            ls.language,
+            ls.start_time,
+            ls.end_time,
+            ls.text,
+            ls.report_path
+        FROM language_segments ls
+        JOIN audio_files af ON ls.audio_file_id = af.id
+    """
     conds: List[str] = []
     params: List[Any] = []
     if source_filter:
-        conds.append("source_audio LIKE ?")
+        conds.append("af.source_path LIKE ?")
         params.append(source_filter)
     if lang_filter:
-        conds.append("language = ?")
+        conds.append("ls.language = ?")
         params.append(lang_filter)
     if conds:
         q += " WHERE " + " AND ".join(conds)
-    q += " ORDER BY start_time ASC, id ASC"
+    q += " ORDER BY ls.start_time ASC, ls.id ASC"
     cur = conn.cursor()
     cur.execute(q, params)
     rows = cur.fetchall()

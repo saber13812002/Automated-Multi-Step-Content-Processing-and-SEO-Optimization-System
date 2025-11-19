@@ -91,10 +91,11 @@ def main() -> None:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, segment_audio, start_time, end_time
-        FROM segments
-        WHERE source_audio LIKE ?
-        ORDER BY start_time ASC, id ASC
+        SELECT ls.id, ls.segment_audio, ls.start_time, ls.end_time
+        FROM language_segments ls
+        JOIN audio_files af ON ls.audio_file_id = af.id
+        WHERE af.source_path LIKE ?
+        ORDER BY ls.start_time ASC, ls.id ASC
         """,
         (args.source_like,),
     )
