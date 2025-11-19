@@ -486,6 +486,52 @@
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
 
+        .model-selector {
+            margin-top: 20px;
+            background: #f7f9ff;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            border-radius: 12px;
+            padding: 15px;
+        }
+
+        .model-selector h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .model-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .model-chip {
+            border-radius: 999px;
+            padding: 6px 14px;
+            background: rgba(255, 255, 255, 0.6);
+            border: 2px solid transparent;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .model-chip.selected {
+            border-color: #fff;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        .model-chip .color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+
         .approved-query-count {
             background: rgba(255, 255, 255, 0.3);
             padding: 2px 8px;
@@ -497,6 +543,41 @@
         .config-info-item {
             display: inline-block;
             margin-left: 20px;
+        }
+
+        .vote-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+        }
+
+        .vote-button {
+            border: none;
+            border-radius: 999px;
+            padding: 6px 14px;
+            cursor: pointer;
+            font-weight: 600;
+            color: white;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .vote-button.like {
+            background: #10B981;
+        }
+
+        .vote-button.dislike {
+            background: #EF4444;
+        }
+
+        .vote-section {
+            margin-top: 25px;
+            padding: 15px;
+            border: 1px dashed rgba(0,0,0,0.1);
+            border-radius: 12px;
+            background: #fafafa;
         }
 
         .config-info-label {
@@ -556,6 +637,13 @@
                     جستجو
                 </button>
             </form>
+            <div class="model-selector" id="modelSelector" style="display:none;">
+                <h4>مدل‌های فعال</h4>
+                <p style="color:#555; font-size:0.9rem; margin-bottom:10px;">
+                    حداکثر 3 مدل را انتخاب کنید تا نتایج به صورت یکی در میان نمایش داده شوند.
+                </p>
+                <div class="model-chips" id="modelChips"></div>
+            </div>
         </div>
 
         <div id="errorContainer"></div>
@@ -614,6 +702,19 @@
         const resultsContainer = document.getElementById('resultsContainer');
         const historySection = document.getElementById('historySection');
         const historyContainer = document.getElementById('historyContainer');
+        const modelSelector = document.getElementById('modelSelector');
+        const modelChipsContainer = document.getElementById('modelChips');
+        
+        let activeModels = [];
+        let selectedModelIds = new Set();
+        let guestUser = null;
+        let lastSearchContext = {
+            query: '',
+            isMulti: false,
+            models: [],
+            fallbackModelId: null,
+            results: []
+        };
         
         // Pagination state
         let currentPage = 1;
@@ -659,7 +760,112 @@
             }
             historySection.style.display = 'block';
             loadHistory();
+            loadActiveModels();
+            initGuestUser();
         });
+
+        function initGuestUser() {
+            if (guestUser) {
+                return;
+            }
+            try {
+                const stored = localStorage.getItem('chroma_guest_user');
+                if (stored) {
+                    guestUser = JSON.parse(stored);
+                }
+            } catch (error) {
+                console.warn('Failed to read guest user from localStorage', error);
+            }
+            if (!guestUser) {
+                guestUser = {
+                    user_id: generateGuestId(),
+                    token: generateGuestToken(),
+                    created_at: new Date().toISOString()
+                };
+                try {
+                    localStorage.setItem('chroma_guest_user', JSON.stringify(guestUser));
+                } catch (error) {
+                    console.warn('Failed to persist guest user', error);
+                }
+            }
+        }
+
+        function generateGuestId() {
+            if (window.crypto && crypto.randomUUID) {
+                return crypto.randomUUID();
+            }
+            return 'guest-' + Math.random().toString(36).substring(2, 10);
+        }
+
+        function generateGuestToken() {
+            return Math.random().toString(36).substring(2, 10) + Date.now().toString(36);
+        }
+
+        async function loadActiveModels() {
+            try {
+                const response = await fetch('/models/active?limit=10', {
+                    headers: { 'Accept': 'application/json; charset=utf-8' }
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                activeModels = data.models || [];
+                renderModelChips();
+            } catch (error) {
+                console.warn('Failed to load active models', error);
+            }
+        }
+
+        function renderModelChips() {
+            if (!activeModels || activeModels.length === 0) {
+                modelSelector.style.display = 'none';
+                return;
+            }
+            modelSelector.style.display = 'block';
+            // Preselect first three if nothing selected yet
+            if (selectedModelIds.size === 0) {
+                activeModels.slice(0, 3).forEach(model => selectedModelIds.add(model.id));
+            }
+
+            let html = '';
+            activeModels.forEach(model => {
+                const isSelected = selectedModelIds.has(model.id);
+                const color = model.color && /^#/.test(model.color) ? model.color : '#3B82F6';
+                html += `
+                    <div class="model-chip ${isSelected ? 'selected' : ''}" onclick="toggleModelChip(${model.id})" title="${escapeHtml(model.collection)}">
+                        <span class="color-dot" style="background:${color};"></span>
+                        <span>${escapeHtml(model.embedding_model)}</span>
+                    </div>
+                `;
+            });
+            modelChipsContainer.innerHTML = html;
+        }
+
+        window.toggleModelChip = function(modelId) {
+            const maxSelection = 3;
+            if (selectedModelIds.has(modelId)) {
+                if (selectedModelIds.size === 1) {
+                    alert('حداقل یک مدل باید انتخاب شود.');
+                    return;
+                }
+                selectedModelIds.delete(modelId);
+            } else {
+                if (selectedModelIds.size >= maxSelection) {
+                    alert(`حداکثر ${maxSelection} مدل قابل انتخاب است.`);
+                    return;
+                }
+                selectedModelIds.add(modelId);
+            }
+            renderModelChips();
+        };
+
+        function getSelectedModelIds() {
+            if (selectedModelIds.size === 0 && activeModels.length > 0) {
+                activeModels.slice(0, 3).forEach(model => selectedModelIds.add(model.id));
+            }
+            return Array.from(selectedModelIds);
+        }
 
         async function performSearch(query, topK, page = 1) {
             // Clear previous results
@@ -668,20 +874,39 @@
             loadingContainer.innerHTML = '<div class="loading"><div class="spinner"></div><p>در حال جستجو...</p></div>';
             searchButton.disabled = true;
 
+            const selectedModelIds = getSelectedModelIds();
+            if (!selectedModelIds.length) {
+                showError('حداقل یک مدل فعال نیست.');
+                loadingContainer.innerHTML = '';
+                searchButton.disabled = false;
+                return;
+            }
+            const selectedModelsData = selectedModelIds.map(id => activeModels.find(m => m.id === id)).filter(Boolean);
+            const isMulti = selectedModelIds.length > 1;
+
             try {
-                const response = await fetch(`${API_BASE_URL}/search`, {
+                const endpoint = isMulti ? `${API_BASE_URL}/search/multi` : `${API_BASE_URL}/search`;
+                const payload = isMulti
+                    ? {
+                        query,
+                        model_ids: selectedModelIds,
+                        top_k: topK,
+                        save: true
+                    }
+                    : {
+                        query,
+                        top_k: topK,
+                        page,
+                        page_size: 20,
+                        save: true
+                    };
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json; charset=utf-8',
                         'Accept': 'application/json; charset=utf-8',
                     },
-                    body: JSON.stringify({
-                        query: query,
-                        top_k: topK,
-                        page: page,
-                        page_size: 20,
-                        save: true
-                    })
+                    body: JSON.stringify(payload)
                 });
 
                 if (!response.ok) {
@@ -691,10 +916,17 @@
 
                 // Ensure UTF-8 encoding when parsing JSON
                 const data = await response.json();
-                displayResults(data);
+                displayResults(data, { isMulti, selectedModels: selectedModelsData });
+                lastSearchContext = {
+                    query,
+                    isMulti,
+                    models: selectedModelsData,
+                    fallbackModelId: selectedModelsData.length === 1 ? selectedModelsData[0].id : null,
+                    results: data.results || []
+                };
                 
                 // Update pagination state
-                if (data.pagination) {
+                if (!isMulti && data.pagination) {
                     currentPage = data.pagination.page;
                 }
                 
@@ -705,13 +937,13 @@
                 window.history.pushState({}, '', url);
                 
                 // Update config info in header
-                if (data.collection) {
+                if (!isMulti && data.collection) {
                     document.getElementById('collectionName').textContent = data.collection;
                 }
-                if (data.model) {
+                if (!isMulti && data.model) {
                     document.getElementById('embeddingModel').textContent = data.model;
                 }
-                if (data.collection || data.model) {
+                if ((!isMulti && data.collection) || (!isMulti && data.model)) {
                     document.getElementById('configInfo').style.display = 'block';
                 }
                 
@@ -735,8 +967,10 @@
             errorContainer.innerHTML = `<div class="error">${message}</div>`;
         }
 
-        function displayResults(data) {
-            if (!data.results || data.results.length === 0) {
+        function displayResults(data, options = {}) {
+            const { isMulti = false, selectedModels = [] } = options;
+            // Show errors even if no results (but some models succeeded)
+            if ((!data.results || data.results.length === 0) && (!data.errors || data.errors.length === 0)) {
                 resultsContainer.innerHTML = `
                     <div class="results-container">
                         <div class="no-results">
@@ -747,19 +981,62 @@
                 `;
                 return;
             }
+            
+            // If we have errors but no results, show errors only
+            if ((!data.results || data.results.length === 0) && data.errors && data.errors.length > 0) {
+                let html = `
+                    <div class="results-container">
+                        <div class="results-header">
+                            <h2>خطا در جستجو</h2>
+                        </div>
+                        <div style="margin: 20px 0; padding: 15px; background: #f8d7da; border: 1px solid #dc3545; border-radius: 8px;">
+                            <h3 style="color: #721c24; margin-bottom: 10px;">❌ خطا در تمام مدل‌ها:</h3>
+                            <ul style="margin: 0; padding-right: 20px; color: #721c24;">
+                                ${data.errors.map(err => `
+                                    <li style="margin-bottom: 5px;">
+                                        <strong>${escapeHtml(err.model || err.collection)}</strong>: ${escapeHtml(err.error)}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+                resultsContainer.innerHTML = html;
+                return;
+            }
 
+            const cacheLabel = data.cache_source ? ` | منبع: ${data.cache_source === 'cache' ? 'کش' : 'زنده'}` : '';
             let html = `
                 <div class="results-container">
                     <div class="results-header">
                         <h2>نتایج جستجو</h2>
                         <div class="results-meta">
                             کوئری: "<strong>${escapeHtml(data.query)}</strong>" | 
-                            نمایش ${data.returned} از ${data.top_k} نتیجه | 
-                            زمان اجرا: ${data.took_ms.toFixed(2)} میلی‌ثانیه
+                            نمایش ${data.returned} ${data.top_k ? `از ${data.top_k}` : ''} نتیجه | 
+                            زمان اجرا: ${data.took_ms.toFixed(2)} میلی‌ثانیه${cacheLabel}
                             ${data.total_documents ? ` | کل مستندات: ${data.total_documents.toLocaleString('fa-IR')}` : ''}
                         </div>
                     </div>
             `;
+            
+            // Display errors if any (for multi-model search)
+            if (data.errors && data.errors.length > 0) {
+                html += `
+                    <div style="margin: 20px 0; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
+                        <h3 style="color: #856404; margin-bottom: 10px;">⚠️ خطا در برخی مدل‌ها:</h3>
+                        <ul style="margin: 0; padding-right: 20px; color: #856404;">
+                            ${data.errors.map(err => `
+                                <li style="margin-bottom: 5px;">
+                                    <strong>${escapeHtml(err.model || err.collection)}</strong>: ${escapeHtml(err.error)}
+                                </li>
+                            `).join('')}
+                        </ul>
+                        <p style="margin-top: 10px; margin-bottom: 0; color: #856404; font-size: 0.9rem;">
+                            نتایج مدل‌های موفق در زیر نمایش داده می‌شوند.
+                        </p>
+                    </div>
+                `;
+            }
             
             // Add pagination controls if available
             if (data.pagination) {
@@ -801,87 +1078,50 @@
                 html += paginationHtml;
             }
 
-            data.results.forEach((result, index) => {
-                html += `
-                    <div class="result-item">
-                        <div class="result-header">
-                            <span class="result-id">#${index + 1} - ${escapeHtml(result.id)}</span>
-                            <div class="result-scores">
-                                ${result.score !== null ? `
-                                    <span class="score-badge">
-                                        <span class="info-icon">ℹ
-                                            <span class="info-tooltip">امتیاز شباهت: عددی بین ۰ تا ۱ که نشان‌دهنده میزان شباهت نتیجه به کوئری شماست. هر چه عدد بالاتر باشد، نتیجه مرتبط‌تر است.</span>
-                                        </span>
-                                        شباهت: ${result.score.toFixed(4)}
-                                    </span>
-                                ` : ''}
-                                ${result.distance !== null ? `
-                                    <span class="distance-badge">
-                                        <span class="info-icon">ℹ
-                                            <span class="info-tooltip">فاصله بردار: عددی بین ۰ تا ۲ که نشان‌دهنده فاصله بردار نتیجه از بردار کوئری است. هر چه عدد کمتر باشد، نتیجه مرتبط‌تر است. امتیاز شباهت از این عدد محاسبه می‌شود (شباهت = ۱ - فاصله).</span>
-                                        </span>
-                                        فاصله: ${result.distance.toFixed(4)}
-                                    </span>
-                                ` : ''}
-                            </div>
-                        </div>
-                        ${result.document ? `<div class="result-document">${escapeHtml(result.document)}</div>` : ''}
-                        ${result.metadata && Object.keys(result.metadata).length > 0 ? `
-                            <div class="result-metadata">
-                                ${Object.entries(result.metadata).map(([key, value]) => {
-                                    // Get Persian label or fallback to original key
-                                    const persianLabel = metadataLabels[key] || key;
-                                    const tooltip = metadataTooltips[key] || '';
-                                    
-                                    // For source_link, create clickable link with shortened display
-                                    if (key === 'source_link' && value) {
-                                        // Clean URL: remove surrounding quotes if any
-                                        let url = String(value).trim();
-                                        // Remove leading/trailing quotes (single or double)
-                                        if ((url.startsWith("'") && url.endsWith("'")) || 
-                                            (url.startsWith('"') && url.endsWith('"'))) {
-                                            url = url.slice(1, -1);
+            const renderMetadata = (metadata) => {
+                if (!metadata || Object.keys(metadata).length === 0) {
+                    return '';
+                }
+                return `
+                    <div class="result-metadata">
+                        ${Object.entries(metadata).map(([key, value]) => {
+                            const persianLabel = metadataLabels[key] || key;
+                            const tooltip = metadataTooltips[key] || '';
+                            if (key === 'source_link' && value) {
+                                let url = String(value).trim();
+                                if ((url.startsWith("'") && url.endsWith("'")) || (url.startsWith('"') && url.endsWith('"'))) {
+                                    url = url.slice(1, -1);
+                                }
+                                const isAbsolute = /^https?:\/\//i.test(url);
+                                const hrefAttr = isAbsolute ? url : '#';
+                                let displayText = url;
+                                try {
+                                    const urlObj = new URL(url);
+                                    const pathMatch = urlObj.pathname.match(/\/node\/(\d+)/);
+                                    const hash = urlObj.hash;
+                                    if (pathMatch && pathMatch[1]) {
+                                        displayText = pathMatch[1] + hash;
+                                    } else {
+                                        const pathParts = urlObj.pathname.split('/').filter(p => p);
+                                        if (pathParts.length > 0) {
+                                            displayText = pathParts[pathParts.length - 1] + hash;
                                         }
-                                        // Ensure URL is absolute (starts with http:// or https://)
-                                        const isAbsolute = /^https?:\/\//i.test(url);
-                                        // Use raw URL in href (no escaping needed for valid URLs)
-                                        const hrefAttr = isAbsolute ? url : `#`;
-                                        
-                                        // Extract short display text from URL
-                                        // Example: https://mesbahyazdi.ir/node/1652#p121 -> 1652#p121
-                                        let displayText = url;
-                                        try {
-                                            const urlObj = new URL(url);
-                                            // Extract node ID and page anchor (e.g., node/1652#p121 -> 1652#p121)
-                                            const pathMatch = urlObj.pathname.match(/\/node\/(\d+)/);
-                                            const hash = urlObj.hash; // e.g., #p121
-                                            if (pathMatch && pathMatch[1]) {
-                                                displayText = pathMatch[1] + hash; // e.g., "1652#p121"
-                                            } else {
-                                                // Fallback: show last part of path + hash
-                                                const pathParts = urlObj.pathname.split('/').filter(p => p);
-                                                if (pathParts.length > 0) {
-                                                    displayText = pathParts[pathParts.length - 1] + hash;
-                                                }
-                                            }
-                                        } catch (e) {
-                                            // If URL parsing fails, try regex
-                                            const match = url.match(/(?:node\/)?(\d+)(#p\d+)?$/i);
-                                            if (match) {
-                                                displayText = match[1] + (match[2] || '');
-                                            } else {
-                                                // Final fallback: show just the last meaningful part
-                                                const parts = url.split('/');
-                                                displayText = parts[parts.length - 1] || url;
-                                            }
-                                        }
-                                        
-                                        const infoIconHtml = tooltip ? `
-                                            <span class="metadata-info-icon">ℹ
-                                                <span class="metadata-info-tooltip">${escapeHtml(tooltip)}</span>
-                                            </span>
-                                        ` : '';
-                                        return `
+                                    }
+                                } catch (e) {
+                                    const match = url.match(/(?:node\/)?(\d+)(#p\d+)?$/i);
+                                    if (match) {
+                                        displayText = match[1] + (match[2] || '');
+                                    } else {
+                                        const parts = url.split('/');
+                                        displayText = parts[parts.length - 1] || url;
+                                    }
+                                }
+                                const infoIconHtml = tooltip ? `
+                                    <span class="metadata-info-icon">ℹ
+                                        <span class="metadata-info-tooltip">${escapeHtml(tooltip)}</span>
+                                    </span>
+                                ` : '';
+                                return `
                                     <div class="metadata-item">
                                         <span class="metadata-label">
                                             <span class="metadata-label-text">${escapeHtml(persianLabel)}:</span>
@@ -892,16 +1132,15 @@
                                         </span>
                                     </div>
                                 `;
-                                    }
-                                    // For boolean values, display as Persian
-                                    if (key === 'has_error' && typeof value === 'boolean') {
-                                        const boolValue = value ? 'بله' : 'خیر';
-                                        const infoIconHtml = tooltip ? `
-                                            <span class="metadata-info-icon">ℹ
-                                                <span class="metadata-info-tooltip">${escapeHtml(tooltip)}</span>
-                                            </span>
-                                        ` : '';
-                                        return `
+                            }
+                            if (key === 'has_error' && typeof value === 'boolean') {
+                                const boolValue = value ? 'بله' : 'خیر';
+                                const infoIconHtml = tooltip ? `
+                                    <span class="metadata-info-icon">ℹ
+                                        <span class="metadata-info-tooltip">${escapeHtml(tooltip)}</span>
+                                    </span>
+                                ` : '';
+                                return `
                                     <div class="metadata-item">
                                         <span class="metadata-label">
                                             <span class="metadata-label-text">${escapeHtml(persianLabel)}:</span>
@@ -910,32 +1149,176 @@
                                         <span class="metadata-value">${escapeHtml(boolValue)}</span>
                                     </div>
                                 `;
-                                    }
-                                    // For other metadata, display as text
-                                    const infoIconHtml = tooltip ? `
-                                        <span class="metadata-info-icon">ℹ
-                                            <span class="metadata-info-tooltip">${escapeHtml(tooltip)}</span>
+                            }
+                            const infoIconHtml = tooltip ? `
+                                <span class="metadata-info-icon">ℹ
+                                    <span class="metadata-info-tooltip">${escapeHtml(tooltip)}</span>
+                                </span>
+                            ` : '';
+                            return `
+                                <div class="metadata-item">
+                                    <span class="metadata-label">
+                                        <span class="metadata-label-text">${escapeHtml(persianLabel)}:</span>
+                                        ${infoIconHtml}
+                                    </span>
+                                    <span class="metadata-value">${escapeHtml(String(value))}</span>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            };
+
+            const fallbackModelId = (!isMulti && selectedModels.length === 1) ? selectedModels[0].id : null;
+            const voteTargets = isMulti
+                ? selectedModels
+                : (selectedModels.length ? selectedModels : [{ id: null, embedding_model: 'نتایج جاری', color: '#667eea' }]);
+
+            if (isMulti && selectedModels.length > 0) {
+                html += `
+                    <div style="margin: 15px 0; padding: 12px; background:#f5f5ff; border-radius:10px;">
+                        <strong>مدل‌های انتخاب شده:</strong>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                            ${selectedModels.map(model => `
+                                <span class="model-chip selected" style="background:${model.color || '#3B82F6'}; color:#fff;">
+                                    ${escapeHtml(model.embedding_model)}
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            data.results.forEach((result, index) => {
+                const color = isMulti ? (result.model_color || '#3B82F6') : '#667eea';
+                const modelBadge = isMulti ? `
+                    <span class="score-badge" style="background:${color};">${escapeHtml(result.embedding_model || '')}</span>
+                ` : '';
+                const resultModelId = isMulti ? (result.model_id ?? null) : fallbackModelId;
+                html += `
+                    <div class="result-item" style="border-right:6px solid ${color};">
+                        <div class="result-header">
+                            <span class="result-id">#${index + 1} - ${escapeHtml(result.id)}</span>
+                            <div class="result-scores">
+                                ${modelBadge}
+                                ${(result.score !== null && result.score !== undefined) ? `
+                                    <span class="score-badge">
+                                        <span class="info-icon">ℹ
+                                            <span class="info-tooltip">امتیاز شباهت: عددی بین ۰ تا ۱ که نشان‌دهنده میزان شباهت نتیجه به کوئری شماست. هر چه عدد بالاتر باشد، نتیجه مرتبط‌تر است.</span>
                                         </span>
-                                    ` : '';
-                                    return `
-                                    <div class="metadata-item">
-                                        <span class="metadata-label">
-                                            <span class="metadata-label-text">${escapeHtml(persianLabel)}:</span>
-                                            ${infoIconHtml}
+                                        شباهت: ${Number(result.score).toFixed(4)}
+                                    </span>
+                                ` : ''}
+                                ${(result.distance !== null && result.distance !== undefined) ? `
+                                    <span class="distance-badge">
+                                        <span class="info-icon">ℹ
+                                            <span class="info-tooltip">فاصله بردار: عددی بین ۰ تا ۲ که نشان‌دهنده فاصله بردار نتیجه از بردار کوئری است. هر چه عدد کمتر باشد، نتیجه مرتبط‌تر است.</span>
                                         </span>
-                                        <span class="metadata-value">${escapeHtml(String(value))}</span>
-                                    </div>
-                                `;
-                                }).join('')}
+                                        فاصله: ${Number(result.distance).toFixed(4)}
+                                    </span>
+                                ` : ''}
                             </div>
-                        ` : ''}
+                        </div>
+                        ${result.document ? `<div class="result-document">${escapeHtml(result.document)}</div>` : ''}
+                        ${renderMetadata(result.metadata)}
+                        <div class="vote-buttons">
+                            <button class="vote-button like" data-result-id="${encodeURIComponent(result.id)}" data-model-id="${resultModelId ?? ''}" onclick="voteOnResult(this, 'like')">👍 مفید بود</button>
+                            <button class="vote-button dislike" data-result-id="${encodeURIComponent(result.id)}" data-model-id="${resultModelId ?? ''}" onclick="voteOnResult(this, 'dislike')">👎 بی‌ارتباط</button>
+                            <span class="vote-feedback"></span>
+                        </div>
                     </div>
                 `;
             });
-
+            html += renderVoteSection(voteTargets);
             html += '</div>';
             resultsContainer.innerHTML = html;
         }
+
+        function renderVoteSection(models) {
+            if (!models || models.length === 0) {
+                return '';
+            }
+            let html = '<div class="vote-section"><strong>نظر شما درباره نتایج</strong><p style="font-size:0.85rem; color:#666; margin:5px 0 10px;">برای بهبود کیفیت جستجو، لطفاً رضایت خود از هر مدل را ثبت کنید.</p>';
+            models.forEach(model => {
+                const color = model.color || '#667eea';
+                html += `
+                    <div style="margin-bottom:12px;">
+                        <span class="model-chip selected" style="background:${color}; color:#fff;">${escapeHtml(model.embedding_model || 'نتایج')}</span>
+                        <div class="vote-buttons">
+                            <button class="vote-button like" data-model-id="${model.id ?? ''}" onclick="voteOnModel(this, 'like')">👍 رضایت داشتم</button>
+                            <button class="vote-button dislike" data-model-id="${model.id ?? ''}" onclick="voteOnModel(this, 'dislike')">👎 رضایت نداشتم</button>
+                            <span class="vote-feedback"></span>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            return html;
+        }
+
+        async function submitVoteRequest({ modelId, resultId = null, voteType }) {
+            initGuestUser();
+            const payload = {
+                guest_user_id: guestUser.user_id,
+                query: lastSearchContext.query,
+                model_id: modelId,
+                result_id: resultId,
+                vote_type: voteType
+            };
+            const response = await fetch('/search/vote', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Accept': 'application/json; charset=utf-8'
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || `HTTP ${response.status}`);
+            }
+            return response.json();
+        }
+
+        function updateVoteFeedback(container, stats) {
+            if (!container) return;
+            container.textContent = `👍 ${stats.likes} | 👎 ${stats.dislikes}`;
+        }
+
+        window.voteOnResult = async function(buttonEl, voteType) {
+            if (!lastSearchContext.query) {
+                alert('ابتدا یک جستجو انجام دهید.');
+                return;
+            }
+            const resultId = buttonEl.dataset.resultId ? decodeURIComponent(buttonEl.dataset.resultId) : null;
+            const modelIdAttr = buttonEl.dataset.modelId;
+            const parsedModelId = modelIdAttr ? parseInt(modelIdAttr, 10) : null;
+            const modelId = Number.isNaN(parsedModelId) ? null : parsedModelId;
+            try {
+                const stats = await submitVoteRequest({ modelId, resultId, voteType });
+                const feedbackEl = buttonEl.parentElement.querySelector('.vote-feedback');
+                updateVoteFeedback(feedbackEl, stats);
+            } catch (error) {
+                alert(`خطا در ثبت رای: ${error.message}`);
+            }
+        };
+
+        window.voteOnModel = async function(buttonEl, voteType) {
+            if (!lastSearchContext.query) {
+                alert('ابتدا یک جستجو انجام دهید.');
+                return;
+            }
+            const modelIdAttr = buttonEl.dataset.modelId;
+            const parsedModelId = modelIdAttr ? parseInt(modelIdAttr, 10) : null;
+            const modelId = Number.isNaN(parsedModelId) ? null : parsedModelId;
+            try {
+                const stats = await submitVoteRequest({ modelId, voteType });
+                const feedbackEl = buttonEl.parentElement.querySelector('.vote-feedback');
+                updateVoteFeedback(feedbackEl, stats);
+            } catch (error) {
+                alert(`خطا در ثبت رای: ${error.message}`);
+            }
+        };
 
         async function loadHistory() {
             try {

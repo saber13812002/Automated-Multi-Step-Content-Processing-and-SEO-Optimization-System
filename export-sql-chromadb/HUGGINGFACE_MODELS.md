@@ -2,13 +2,30 @@
 
 این راهنما شامل مثال‌های کامل و پیشنهادات مدل‌های HuggingFace برای استفاده در اسکریپت `export-sql-backup-to-chromadb.py` است.
 
-## 📦 نصب وابستگی‌ها
+## 🚀 شروع سریع
+
+### نصب وابستگی‌ها
 
 برای استفاده از مدل‌های HuggingFace، ابتدا کتابخانه‌های مورد نیاز را نصب کنید:
 
 ```bash
 pip install transformers torch numpy
 ```
+
+### مثال سریع با ParsBERT
+
+```bash
+python export-sql-backup-to-chromadb.py \
+  --sql-path book_pages.sql \
+  --collection book_pages_parsbert \
+  --embedding-provider huggingface \
+  --embedding-model "HooshvareLab/bert-base-parsbert-uncased" \
+  --batch-size 32
+```
+
+این مثال از ParsBERT (بهترین مدل برای متون فارسی) استفاده می‌کند. برای جزئیات بیشتر و مثال‌های دیگر، ادامه مطلب را مطالعه کنید.
+
+---
 
 ## 🎯 مدل‌های پیشنهادی برای تست
 
@@ -105,7 +122,7 @@ python export-sql-backup-to-chromadb.py \
 ### مثال 4: mBERT (چندزبانه - برای هر دو زبان)
 
 ```bash
-python export-sql-backup-to-chromadb.py \
+python3 export-sql-backup-to-chromadb.py \
   --sql-path book_pages.sql \
   --collection book_pages_mbert \
   --embedding-provider huggingface \
@@ -119,7 +136,7 @@ python export-sql-backup-to-chromadb.py \
 ### مثال 5: XLM-RoBERTa (چندزبانه - عملکرد بهتر)
 
 ```bash
-python export-sql-backup-to-chromadb.py \
+python3 export-sql-backup-to-chromadb.py \
   --sql-path book_pages.sql \
   --collection book_pages_xlmr \
   --embedding-provider huggingface \
@@ -133,7 +150,7 @@ python export-sql-backup-to-chromadb.py \
 ### مثال 6: استفاده از CPU (اگر GPU ندارید)
 
 ```bash
-python export-sql-backup-to-chromadb.py \
+python3 export-sql-backup-to-chromadb.py \
   --sql-path book_pages.sql \
   --collection book_pages_parsbert_cpu \
   --embedding-provider huggingface \

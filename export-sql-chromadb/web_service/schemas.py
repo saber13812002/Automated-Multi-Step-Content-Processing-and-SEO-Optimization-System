@@ -72,6 +72,43 @@ class SearchResponse(BaseModel):
     pagination: Optional[PaginationInfo] = Field(None, description="Pagination information.")
 
 
+class MultiModelSearchRequest(BaseModel):
+    """Request payload for multi-model search."""
+
+    query: str = Field(..., min_length=1, description="متن جستجو")
+    model_ids: List[int] = Field(
+        ...,
+        min_length=1,
+        max_length=3,
+        description="شناسه مدل‌های انتخاب‌شده (حداکثر 3)",
+    )
+    top_k: int = Field(20, ge=1, le=50, description="حداکثر تعداد نتایج per model")
+    save: bool = Field(False, description="ذخیره نتایج در دیتابیس")
+
+
+class MultiModelResult(SearchResult):
+    """Single result item tagged with model info."""
+
+    model_id: int
+    model_color: str
+    embedding_model: str
+    embedding_provider: str
+
+
+class MultiModelSearchResponse(BaseModel):
+    """Response payload for multi-model search."""
+
+    query: str
+    model_ids: List[int]
+    returned: int
+    results: List[MultiModelResult]
+    took_ms: float
+    cache_source: str = Field(description="منبع نتایج (cache یا realtime)")
+    errors: Optional[List[Dict[str, str]]] = Field(
+        None, description="خطاهای مدل‌های ناموفق (collection, error_message)"
+    )
+
+
 class HealthComponent(BaseModel):
     status: str
     detail: Optional[str] = None
@@ -149,6 +186,41 @@ class ExportJobDetail(BaseModel):
 class ExportJobsResponse(BaseModel):
     """Response for export jobs list."""
     jobs: List[ExportJobItem]
+
+
+class EmbeddingModelItem(BaseModel):
+    """Embedding model info for admin and user selection."""
+
+    id: int
+    embedding_provider: str
+    embedding_model: str
+    collection: str
+    is_active: bool
+    color: str
+    job_id: Optional[int] = None
+    completed_at: Optional[datetime] = None
+    total_documents_in_collection: Optional[int] = None
+    total_records: Optional[int] = None
+    total_books: Optional[int] = None
+    total_segments: Optional[int] = None
+
+
+class EmbeddingModelsResponse(BaseModel):
+    """List of embedding models."""
+
+    models: List[EmbeddingModelItem]
+
+
+class ToggleModelRequest(BaseModel):
+    """Toggle embedding model status."""
+
+    is_active: bool
+
+
+class UpdateModelColorRequest(BaseModel):
+    """Update embedding model color."""
+
+    color: str = Field(..., min_length=4, max_length=7, description="کد رنگ HEX")
 
 
 class ChromaCollectionInfo(BaseModel):
@@ -303,5 +375,64 @@ class TokenUsageResponse(BaseModel):
     rate_limit: int
     remaining: int
     reset_at: datetime
+
+
+class VoteRequest(BaseModel):
+    """Request payload for voting on search results."""
+
+    guest_user_id: str = Field(..., min_length=8)
+    query: str = Field(..., min_length=1)
+    vote_type: str = Field(..., pattern="^(like|dislike)$")
+    model_id: Optional[int] = Field(None, description="شناسه مدل (اختیاری)")
+    result_id: Optional[str] = Field(None, description="شناسه نتیجه (اختیاری)")
+
+
+class VoteResponse(BaseModel):
+    """Response after registering a vote."""
+
+    success: bool
+    likes: int
+    dislikes: int
+
+
+class VoteItem(BaseModel):
+    """Single vote entry for admin."""
+
+    id: int
+    guest_user_id: str
+    query: str
+    vote_type: str
+    created_at: datetime
+    model_id: Optional[int] = None
+    result_id: Optional[str] = None
+    embedding_provider: Optional[str] = None
+    embedding_model: Optional[str] = None
+    collection: Optional[str] = None
+    color: Optional[str] = None
+
+
+class VotesResponse(BaseModel):
+    """List of votes for admin view."""
+
+    votes: List[VoteItem]
+
+
+class VoteSummaryItem(BaseModel):
+    """Aggregated votes per query/model."""
+
+    query: str
+    model_id: Optional[int] = None
+    embedding_provider: Optional[str] = None
+    embedding_model: Optional[str] = None
+    collection: Optional[str] = None
+    likes: int
+    dislikes: int
+    last_vote_at: Optional[datetime] = None
+
+
+class VoteSummaryResponse(BaseModel):
+    """Vote summaries."""
+
+    items: List[VoteSummaryItem]
 
 
