@@ -277,6 +277,106 @@
             padding-bottom: 10px;
         }
 
+        .models-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 15px;
+        }
+
+        .embedding-model-card {
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 15px;
+            background: #fdfdfd;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .embedding-model-card.inactive {
+            opacity: 0.6;
+        }
+
+        .model-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .model-title {
+            font-weight: 700;
+            color: #333;
+        }
+
+        .model-collection {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .model-color-picker {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .model-color-picker input[type="color"] {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .model-meta {
+            font-size: 0.9rem;
+            color: #555;
+            line-height: 1.4;
+        }
+
+        .vote-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 12px;
+            background: #fafafa;
+        }
+
+        .vote-card strong {
+            color: #333;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .badge.like {
+            background: #10B981;
+        }
+
+        .badge.dislike {
+            background: #EF4444;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .summary-card {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 15px;
+            background: #fff;
+        }
+
         .form-group {
             margin-bottom: 20px;
         }
@@ -523,6 +623,38 @@
             <div id="queriesLoading" class="loading" style="display: none;">در حال بارگذاری...</div>
             <div id="queriesError" class="error" style="display: none;"></div>
             <div id="queriesList"></div>
+        </div>
+
+        <!-- Embedding Models Management -->
+        <div class="admin-box">
+            <h2>🧠 مدیریت مدل‌های امبدینگ</h2>
+            <p style="color:#666; margin-bottom:15px;">
+                مدل‌هایی که آخرین Job موفق را کامل کرده‌اند در این بخش نمایش داده می‌شوند. ادمین می‌تواند آن‌ها را فعال/غیرفعال
+                کرده و رنگ اختصاصی برای نمایش در صفحه جستجو تنظیم کند (حداکثر 10 مدل).
+            </p>
+            <div class="form-group">
+                <button class="refresh-button" onclick="loadEmbeddingModels()">🔄 به‌روزرسانی مدل‌ها</button>
+            </div>
+            <div id="modelsLoading" class="loading" style="display:none;">در حال بارگذاری مدل‌ها...</div>
+            <div id="modelsError" class="error" style="display:none;"></div>
+            <div id="modelsList"></div>
+        </div>
+
+        <!-- Votes monitoring -->
+        <div class="admin-box">
+            <h2>❤️ آمار رای‌ها</h2>
+            <div class="form-group">
+                <button class="refresh-button" onclick="loadVotes()">🔄 رای‌های اخیر</button>
+                <button class="refresh-button" onclick="loadVoteSummary()" style="margin-right:10px;">📊 خلاصه</button>
+            </div>
+            <div id="votesLoading" class="loading" style="display:none;">در حال دریافت رای‌ها...</div>
+            <div id="votesError" class="error" style="display:none;"></div>
+            <div id="votesList"></div>
+
+            <h3 style="margin-top:25px; color:#333;">خلاصه بر اساس Query/Model</h3>
+            <div id="voteSummaryLoading" class="loading" style="display:none;">در حال دریافت خلاصه...</div>
+            <div id="voteSummaryError" class="error" style="display:none;"></div>
+            <div id="voteSummary"></div>
         </div>
 
         <!-- Auth Management Box -->
@@ -1133,6 +1265,217 @@
             }
         }
 
+        async function loadEmbeddingModels() {
+            const loadingEl = document.getElementById('modelsLoading');
+            const errorEl = document.getElementById('modelsError');
+            const listEl = document.getElementById('modelsList');
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            listEl.innerHTML = '';
+
+            try {
+                const response = await fetch('/admin/models?limit=10', {
+                    headers: {
+                        'Accept': 'application/json; charset=utf-8'
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                renderEmbeddingModels(data.models || []);
+            } catch (error) {
+                errorEl.textContent = `خطا در بارگذاری مدل‌ها: ${error.message}`;
+                errorEl.style.display = 'block';
+            } finally {
+                loadingEl.style.display = 'none';
+            }
+        }
+
+        function renderEmbeddingModels(models) {
+            const listEl = document.getElementById('modelsList');
+            if (!models || models.length === 0) {
+                listEl.innerHTML = '<p style="color:#666;">هیچ مدل فعالی یافت نشد.</p>';
+                return;
+            }
+
+            let html = '<div class="models-grid">';
+            models.forEach(model => {
+                const color = model.color && /^#/.test(model.color) ? model.color : '#3B82F6';
+                html += `
+                    <div class="embedding-model-card ${model.is_active ? '' : 'inactive'}" style="border-top:4px solid ${color};">
+                        <div class="model-header">
+                            <div>
+                                <div class="model-title">${escapeHtml(model.embedding_model)}</div>
+                                <div class="model-collection">${escapeHtml(model.collection)}</div>
+                            </div>
+                            <label class="checkbox-group" style="margin:0;">
+                                <input type="checkbox" ${model.is_active ? 'checked' : ''} onchange="toggleEmbeddingModel(${model.id}, this.checked)">
+                                <span>${model.is_active ? 'فعال' : 'غیرفعال'}</span>
+                            </label>
+                        </div>
+                        <div class="model-meta">
+                            <div>Provider: ${escapeHtml(model.embedding_provider)}</div>
+                            <div>آخرین بروزرسانی: ${model.completed_at ? formatDate(model.completed_at) : '-'}</div>
+                        </div>
+                        <div class="model-color-picker">
+                            <span>رنگ نمایش:</span>
+                            <input type="color" value="${color}" onchange="updateEmbeddingModelColor(${model.id}, this.value)">
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            listEl.innerHTML = html;
+        }
+
+        async function toggleEmbeddingModel(modelId, isActive) {
+            try {
+                const response = await fetch(`/admin/models/${modelId}/toggle`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Accept': 'application/json; charset=utf-8'
+                    },
+                    body: JSON.stringify({ is_active: isActive })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                await response.json();
+                loadEmbeddingModels();
+            } catch (error) {
+                alert(`خطا در بروزرسانی وضعیت مدل: ${error.message}`);
+            }
+        }
+
+        async function updateEmbeddingModelColor(modelId, color) {
+            try {
+                const response = await fetch(`/admin/models/${modelId}/color`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                        'Accept': 'application/json; charset=utf-8'
+                    },
+                    body: JSON.stringify({ color })
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                await response.json();
+            } catch (error) {
+                alert(`خطا در تغییر رنگ مدل: ${error.message}`);
+                loadEmbeddingModels();
+            }
+        }
+
+        async function loadVotes() {
+            const loadingEl = document.getElementById('votesLoading');
+            const errorEl = document.getElementById('votesError');
+            const listEl = document.getElementById('votesList');
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            listEl.innerHTML = '';
+
+            try {
+                const response = await fetch('/admin/search/votes?limit=50', {
+                    headers: { 'Accept': 'application/json; charset=utf-8' }
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                renderVotes(data.votes || []);
+            } catch (error) {
+                errorEl.textContent = `خطا در دریافت رای‌ها: ${error.message}`;
+                errorEl.style.display = 'block';
+            } finally {
+                loadingEl.style.display = 'none';
+            }
+        }
+
+        function renderVotes(votes) {
+            const listEl = document.getElementById('votesList');
+            if (!votes || votes.length === 0) {
+                listEl.innerHTML = '<p style="color:#666;">هنوز رایی ثبت نشده است.</p>';
+                return;
+            }
+
+            let html = '';
+            votes.forEach(vote => {
+                const badgeClass = vote.vote_type === 'like' ? 'badge like' : 'badge dislike';
+                const badgeText = vote.vote_type === 'like' ? 'لایک' : 'دیسلایک';
+                html += `
+                    <div class="vote-card">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <strong>${escapeHtml(vote.query)}</strong>
+                            <span class="${badgeClass}">${badgeText}</span>
+                        </div>
+                        <div style="font-size:0.85rem; color:#555; margin-top:8px;">
+                            مدل: ${vote.embedding_model ? escapeHtml(vote.embedding_model) : 'عمومی'} | 
+                            مهمان: ${escapeHtml(vote.guest_user_id)} | 
+                            زمان: ${vote.created_at ? formatDate(vote.created_at) : '-'}
+                        </div>
+                    </div>
+                `;
+            });
+            listEl.innerHTML = html;
+        }
+
+        async function loadVoteSummary() {
+            const loadingEl = document.getElementById('voteSummaryLoading');
+            const errorEl = document.getElementById('voteSummaryError');
+            const summaryEl = document.getElementById('voteSummary');
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            summaryEl.innerHTML = '';
+
+            try {
+                const response = await fetch('/admin/search/votes/summary?limit=50', {
+                    headers: { 'Accept': 'application/json; charset=utf-8' }
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                renderVoteSummary(data.items || []);
+            } catch (error) {
+                errorEl.textContent = `خطا در دریافت خلاصه رای‌ها: ${error.message}`;
+                errorEl.style.display = 'block';
+            } finally {
+                loadingEl.style.display = 'none';
+            }
+        }
+
+        function renderVoteSummary(items) {
+            const summaryEl = document.getElementById('voteSummary');
+            if (!items || items.length === 0) {
+                summaryEl.innerHTML = '<p style="color:#666;">خلاصه‌ای موجود نیست.</p>';
+                return;
+            }
+
+            let html = '<div class="summary-grid">';
+            items.forEach(item => {
+                html += `
+                    <div class="summary-card">
+                        <div style="font-weight:600; margin-bottom:5px;">${escapeHtml(item.query)}</div>
+                        <div style="font-size:0.85rem; color:#555;">
+                            مدل: ${item.embedding_model ? escapeHtml(item.embedding_model) : 'عمومی'}
+                        </div>
+                        <div style="margin-top:8px;">
+                            <span class="badge like">👍 ${item.likes}</span>
+                            <span class="badge dislike" style="margin-right:5px;">👎 ${item.dislikes}</span>
+                        </div>
+                        <div style="font-size:0.8rem; color:#777; margin-top:6px;">
+                            آخرین رای: ${item.last_vote_at ? formatDate(item.last_vote_at) : '-'}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            summaryEl.innerHTML = html;
+        }
+
         async function loadQueryStats() {
             const statsEl = document.getElementById('queryStats');
             statsEl.innerHTML = '<div class="loading">در حال بارگذاری...</div>';
@@ -1494,6 +1837,9 @@
         loadQueryStats();
         loadUsers();
         loadTokens();
+        loadEmbeddingModels();
+        loadVotes();
+        loadVoteSummary();
     </script>
 </body>
 </html>

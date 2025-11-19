@@ -11,6 +11,26 @@ from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_MODEL_COLORS = [
+    "#3B82F6",
+    "#10B981",
+    "#F59E0B",
+    "#EF4444",
+    "#8B5CF6",
+    "#06B6D4",
+    "#F97316",
+    "#84CC16",
+    "#EC4899",
+    "#6366F1",
+]
+
+
+def _pick_default_model_color(index: int) -> str:
+    """Return a default color for embedding models."""
+    if not DEFAULT_MODEL_COLORS:
+        return "#3B82F6"
+    return DEFAULT_MODEL_COLORS[index % len(DEFAULT_MODEL_COLORS)]
+
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _DB_PATH = _PROJECT_ROOT / "search_history.db"
 
@@ -113,6 +133,55 @@ def init_database() -> None:
         """)
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_query_approvals_status ON query_approvals(status)
+        """)
+        # Create embedding_models table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS embedding_models (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                embedding_provider TEXT NOT NULL,
+                embedding_model TEXT NOT NULL,
+                collection TEXT NOT NULL,
+                job_id INTEGER NOT NULL,
+                is_active BOOLEAN NOT NULL DEFAULT 1,
+                color TEXT NOT NULL DEFAULT '#3B82F6',
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                last_completed_job_at DATETIME,
+                FOREIGN KEY(job_id) REFERENCES export_jobs(id)
+            )
+        """)
+        cursor.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_embedding_models_unique
+            ON embedding_models(embedding_provider, embedding_model, collection)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_embedding_models_active
+            ON embedding_models(is_active)
+        """)
+        # Create search_votes table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS search_votes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                guest_user_id TEXT NOT NULL,
+                query TEXT NOT NULL,
+                model_id INTEGER,
+                result_id TEXT,
+                vote_type TEXT NOT NULL CHECK(vote_type IN ('like', 'dislike')),
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(model_id) REFERENCES embedding_models(id)
+            )
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_search_votes_guest_user
+            ON search_votes(guest_user_id)
+        """)
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_search_votes_query
+            ON search_votes(query)
+        """)
+        cursor.execute("""
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_search_votes_unique
+            ON search_votes(guest_user_id, query, COALESCE(model_id, -1), COALESCE(result_id, ''))
         """)
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_query_approvals_search_count ON query_approvals(search_count DESC)
@@ -483,6 +552,309 @@ def get_export_job(job_id: int) -> Optional[Dict[str, Any]]:
         }
 
 
+def get_latest_completed_model_jobs(limit: int = 10) -> List[Dict[str, Any]]:
+    """Return latest completed jobs per unique (provider, model, collection)."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT ej.id as job_id,
+                   ej.embedding_provider,
+                   ej.embedding_model,
+                   ej.collection,
+                   ej.completed_at,
+                   ej.total_documents_in_collection,
+                   ej.total_records,
+                   ej.total_books,
+                   ej.total_segments
+            FROM export_jobs ej
+            JOIN (
+                SELECT embedding_provider,
+                       embedding_model,
+                       collection,
+                       MAX(completed_at) AS max_completed_at
+                FROM export_jobs
+                WHERE status = 'completed' AND completed_at IS NOT NULL
+                GROUP BY embedding_provider, embedding_model, collection
+            ) latest
+              ON latest.embedding_provider = ej.embedding_provider
+             AND latest.embedding_model = ej.embedding_model
+             AND latest.collection = ej.collection
+             AND latest.max_completed_at = ej.completed_at
+            WHERE ej.status = 'completed'
+            ORDER BY ej.completed_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = cursor.fetchall()
+
+    jobs: List[Dict[str, Any]] = []
+    for row in rows:
+        jobs.append(
+            {
+                "job_id": row["job_id"],
+                "embedding_provider": row["embedding_provider"],
+                "embedding_model": row["embedding_model"],
+                "collection": row["collection"],
+                "completed_at": datetime.fromisoformat(row["completed_at"])
+                if row["completed_at"]
+                else None,
+                "total_documents_in_collection": row["total_documents_in_collection"],
+                "total_records": row["total_records"],
+                "total_books": row["total_books"],
+                "total_segments": row["total_segments"],
+            }
+        )
+    return jobs
+
+
+def sync_embedding_models_from_jobs(limit: int = 10) -> None:
+    """Ensure embedding_models table has the most recent completed jobs."""
+    latest_jobs = get_latest_completed_model_jobs(limit)
+    if not latest_jobs:
+        return
+
+    now = datetime.utcnow().isoformat()
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) as cnt FROM embedding_models")
+        count_row = cursor.fetchone()
+        existing_count = count_row["cnt"] if count_row else 0
+
+        for idx, job in enumerate(latest_jobs):
+            default_color = _pick_default_model_color(existing_count + idx)
+            cursor.execute(
+                """
+                INSERT INTO embedding_models (
+                    embedding_provider,
+                    embedding_model,
+                    collection,
+                    job_id,
+                    is_active,
+                    color,
+                    created_at,
+                    updated_at,
+                    last_completed_job_at
+                )
+                VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?)
+                ON CONFLICT(embedding_provider, embedding_model, collection) DO UPDATE SET
+                    job_id = excluded.job_id,
+                    last_completed_job_at = excluded.last_completed_job_at,
+                    updated_at = ?
+                """,
+                (
+                    job["embedding_provider"],
+                    job["embedding_model"],
+                    job["collection"],
+                    job["job_id"],
+                    default_color,
+                    now,
+                    now,
+                    job["completed_at"].isoformat() if job["completed_at"] else now,
+                    now,
+                ),
+            )
+
+
+def get_embedding_models(
+    limit: int = 10, active_only: bool = False, ensure_sync: bool = True
+) -> List[Dict[str, Any]]:
+    """Return embedding models with latest job info."""
+    if ensure_sync:
+        sync_embedding_models_from_jobs(limit)
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        query = """
+            SELECT em.id,
+                   em.embedding_provider,
+                    em.embedding_model,
+                    em.collection,
+                    em.is_active,
+                    em.color,
+                    em.job_id,
+                    em.last_completed_job_at,
+                    ej.completed_at,
+                    ej.total_documents_in_collection,
+                    ej.total_records,
+                    ej.total_books,
+                    ej.total_segments
+            FROM embedding_models em
+            LEFT JOIN export_jobs ej ON ej.id = em.job_id
+            WHERE 1=1
+        """
+        params: List[Any] = []
+        if active_only:
+            query += " AND em.is_active = 1"
+        query += """
+            ORDER BY COALESCE(em.last_completed_job_at, ej.completed_at) DESC
+            LIMIT ?
+        """
+        params.append(limit)
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+
+    models: List[Dict[str, Any]] = []
+    for row in rows:
+        completed_at = row["last_completed_job_at"] or row["completed_at"]
+        models.append(
+            {
+                "id": row["id"],
+                "embedding_provider": row["embedding_provider"],
+                "embedding_model": row["embedding_model"],
+                "collection": row["collection"],
+                "is_active": bool(row["is_active"]),
+                "color": row["color"],
+                "job_id": row["job_id"],
+                "completed_at": datetime.fromisoformat(completed_at)
+                if completed_at
+                else None,
+                "total_documents_in_collection": row["total_documents_in_collection"],
+                "total_records": row["total_records"],
+                "total_books": row["total_books"],
+                "total_segments": row["total_segments"],
+            }
+        )
+    return models
+
+
+def get_embedding_model(model_id: int) -> Optional[Dict[str, Any]]:
+    """Return single embedding model by ID."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT em.id,
+                   em.embedding_provider,
+                   em.embedding_model,
+                   em.collection,
+                   em.is_active,
+                   em.color,
+                   em.job_id,
+                   em.last_completed_job_at,
+                   ej.completed_at,
+                   ej.total_documents_in_collection,
+                   ej.total_records,
+                   ej.total_books,
+                   ej.total_segments
+            FROM embedding_models em
+            LEFT JOIN export_jobs ej ON ej.id = em.job_id
+            WHERE em.id = ?
+            """,
+            (model_id,),
+        )
+        row = cursor.fetchone()
+
+    if not row:
+        return None
+
+    completed_at = row["last_completed_job_at"] or row["completed_at"]
+    return {
+        "id": row["id"],
+        "embedding_provider": row["embedding_provider"],
+        "embedding_model": row["embedding_model"],
+        "collection": row["collection"],
+        "is_active": bool(row["is_active"]),
+        "color": row["color"],
+        "job_id": row["job_id"],
+        "completed_at": datetime.fromisoformat(completed_at) if completed_at else None,
+        "total_documents_in_collection": row["total_documents_in_collection"],
+        "total_records": row["total_records"],
+        "total_books": row["total_books"],
+        "total_segments": row["total_segments"],
+    }
+
+
+def get_embedding_models_by_ids(model_ids: List[int]) -> List[Dict[str, Any]]:
+    """Return embedding models for the provided IDs."""
+    if not model_ids:
+        return []
+    placeholders = ",".join("?" for _ in model_ids)
+    query = f"""
+        SELECT em.id,
+               em.embedding_provider,
+               em.embedding_model,
+               em.collection,
+               em.is_active,
+               em.color,
+               em.job_id,
+               em.last_completed_job_at,
+               ej.completed_at,
+               ej.total_documents_in_collection,
+               ej.total_records,
+               ej.total_books,
+               ej.total_segments
+        FROM embedding_models em
+        LEFT JOIN export_jobs ej ON ej.id = em.job_id
+        WHERE em.id IN ({placeholders})
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(query, model_ids)
+        rows = cursor.fetchall()
+
+    models: List[Dict[str, Any]] = []
+    for row in rows:
+        completed_at = row["last_completed_job_at"] or row["completed_at"]
+        models.append(
+            {
+                "id": row["id"],
+                "embedding_provider": row["embedding_provider"],
+                "embedding_model": row["embedding_model"],
+                "collection": row["collection"],
+                "is_active": bool(row["is_active"]),
+                "color": row["color"],
+                "job_id": row["job_id"],
+                "completed_at": datetime.fromisoformat(completed_at)
+                if completed_at
+                else None,
+                "total_documents_in_collection": row["total_documents_in_collection"],
+                "total_records": row["total_records"],
+                "total_books": row["total_books"],
+                "total_segments": row["total_segments"],
+            }
+        )
+    return models
+
+
+def get_active_embedding_models(limit: int = 10) -> List[Dict[str, Any]]:
+    """Return active embedding models."""
+    return get_embedding_models(limit=limit, active_only=True)
+
+
+def set_embedding_model_active(model_id: int, is_active: bool) -> bool:
+    """Toggle embedding model active state."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE embedding_models
+            SET is_active = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (1 if is_active else 0, datetime.utcnow().isoformat(), model_id),
+        )
+        return cursor.rowcount > 0
+
+
+def update_embedding_model_color(model_id: int, color: str) -> bool:
+    """Update embedding model color."""
+    if not color:
+        return False
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            UPDATE embedding_models
+            SET color = ?, updated_at = ?
+            WHERE id = ?
+            """,
+            (color, datetime.utcnow().isoformat(), model_id),
+        )
+        return cursor.rowcount > 0
+
+
 def get_query_approvals(
     limit: int = 50,
     min_count: int = 0,
@@ -611,6 +983,198 @@ def update_query_search_count(query: str) -> None:
                 last_searched_at = ?
         """, (query, now, now))
         logger.debug("Updated search count for query: %s", query)
+
+
+def save_search_vote(
+    guest_user_id: str,
+    query: str,
+    vote_type: str,
+    model_id: Optional[int] = None,
+    result_id: Optional[str] = None,
+) -> None:
+    """Save or update a search vote."""
+    if vote_type not in ("like", "dislike"):
+        raise ValueError("vote_type must be 'like' or 'dislike'")
+
+    normalized_result_id = result_id or None
+    now = datetime.utcnow().isoformat()
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            DELETE FROM search_votes
+            WHERE guest_user_id = ?
+              AND query = ?
+              AND (
+                    (model_id IS NULL AND ? IS NULL)
+                    OR model_id = ?
+                  )
+              AND (
+                    (result_id IS NULL AND ? IS NULL)
+                    OR result_id = ?
+                  )
+            """,
+            (
+                guest_user_id,
+                query,
+                model_id,
+                model_id,
+                normalized_result_id,
+                normalized_result_id,
+            ),
+        )
+        cursor.execute(
+            """
+            INSERT INTO search_votes (
+                guest_user_id,
+                query,
+                model_id,
+                result_id,
+                vote_type,
+                created_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                guest_user_id,
+                query,
+                model_id,
+                normalized_result_id,
+                vote_type,
+                now,
+            ),
+        )
+
+
+def get_search_votes(
+    limit: int = 100,
+    query: Optional[str] = None,
+    model_id: Optional[int] = None,
+) -> List[Dict[str, Any]]:
+    """Return search votes with optional filters."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        sql = """
+            SELECT sv.id,
+                   sv.guest_user_id,
+                   sv.query,
+                   sv.model_id,
+                   sv.result_id,
+                   sv.vote_type,
+                   sv.created_at,
+                   em.embedding_provider,
+                   em.embedding_model,
+                   em.collection,
+                   em.color
+            FROM search_votes sv
+            LEFT JOIN embedding_models em ON em.id = sv.model_id
+            WHERE 1=1
+        """
+        params: List[Any] = []
+        if query:
+            sql += " AND sv.query = ?"
+            params.append(query)
+        if model_id is not None:
+            sql += " AND sv.model_id = ?"
+            params.append(model_id)
+        sql += " ORDER BY sv.created_at DESC LIMIT ?"
+        params.append(limit)
+
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+
+    votes: List[Dict[str, Any]] = []
+    for row in rows:
+        votes.append(
+            {
+                "id": row["id"],
+                "guest_user_id": row["guest_user_id"],
+                "query": row["query"],
+                "model_id": row["model_id"],
+                "result_id": row["result_id"],
+                "vote_type": row["vote_type"],
+                "created_at": datetime.fromisoformat(row["created_at"])
+                if row["created_at"]
+                else None,
+                "embedding_provider": row["embedding_provider"],
+                "embedding_model": row["embedding_model"],
+                "collection": row["collection"],
+                "color": row["color"],
+            }
+        )
+    return votes
+
+
+def get_vote_stats(
+    query: Optional[str] = None, model_id: Optional[int] = None
+) -> Dict[str, int]:
+    """Return aggregated like/dislike counts."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        sql = """
+            SELECT 
+                SUM(CASE WHEN vote_type = 'like' THEN 1 ELSE 0 END) AS likes,
+                SUM(CASE WHEN vote_type = 'dislike' THEN 1 ELSE 0 END) AS dislikes
+            FROM search_votes
+            WHERE 1=1
+        """
+        params: List[Any] = []
+        if query:
+            sql += " AND query = ?"
+            params.append(query)
+        if model_id is not None:
+            sql += " AND model_id = ?"
+            params.append(model_id)
+        cursor.execute(sql, params)
+        row = cursor.fetchone()
+
+    return {
+        "likes": row["likes"] if row and row["likes"] else 0,
+        "dislikes": row["dislikes"] if row and row["dislikes"] else 0,
+    }
+
+
+def get_vote_summary(limit: int = 50) -> List[Dict[str, Any]]:
+    """Return vote summary grouped by query and model."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT sv.query,
+                   sv.model_id,
+                   em.embedding_provider,
+                   em.embedding_model,
+                   em.collection,
+                   SUM(CASE WHEN sv.vote_type = 'like' THEN 1 ELSE 0 END) AS likes,
+                   SUM(CASE WHEN sv.vote_type = 'dislike' THEN 1 ELSE 0 END) AS dislikes,
+                   MAX(sv.created_at) AS last_vote_at
+            FROM search_votes sv
+            LEFT JOIN embedding_models em ON em.id = sv.model_id
+            GROUP BY sv.query, sv.model_id
+            ORDER BY last_vote_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        rows = cursor.fetchall()
+
+    summary: List[Dict[str, Any]] = []
+    for row in rows:
+        summary.append(
+            {
+                "query": row["query"],
+                "model_id": row["model_id"],
+                "embedding_provider": row["embedding_provider"],
+                "embedding_model": row["embedding_model"],
+                "collection": row["collection"],
+                "likes": row["likes"],
+                "dislikes": row["dislikes"],
+                "last_vote_at": datetime.fromisoformat(row["last_vote_at"])
+                if row["last_vote_at"]
+                else None,
+            }
+        )
+    return summary
 
 
 def create_api_user(username: str, email: Optional[str] = None) -> int:

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
+import math
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -30,21 +32,32 @@ from .database import (
     create_api_token,
     create_api_user,
     delete_query,
+    get_active_embedding_models,
     get_all_tokens,
     get_all_users,
     get_api_token,
+    get_embedding_model,
+    get_embedding_models,
+    get_embedding_models_by_ids,
     get_export_job,
     get_export_jobs,
     get_query_approvals,
     get_query_stats,
     get_search_history,
     get_search_results,
+    get_search_votes,
     get_token_usage_today,
+    get_vote_stats,
+    get_vote_summary,
     increment_token_usage,
     init_database,
     reject_query,
     revoke_token,
     save_search,
+    save_search_vote,
+    set_embedding_model_active,
+    sync_embedding_models_from_jobs,
+    update_embedding_model_color,
     update_query_search_count,
 )
 from .logging_setup import configure_logging
@@ -54,6 +67,8 @@ from .schemas import (
     ChromaTestResponse,
     CreateTokenRequest,
     CreateUserRequest,
+    EmbeddingModelItem,
+    EmbeddingModelsResponse,
     ExportCommandRequest,
     ExportCommandResponse,
     ExportJobDetail,
@@ -61,6 +76,9 @@ from .schemas import (
     ExportJobsResponse,
     HealthComponent,
     HealthResponse,
+    MultiModelResult,
+    MultiModelSearchRequest,
+    MultiModelSearchResponse,
     PaginationInfo,
     QueryApprovalItem,
     QueryApprovalsResponse,
@@ -73,10 +91,18 @@ from .schemas import (
     TokenResponse,
     TokenUsageResponse,
     TokensResponse,
+    ToggleModelRequest,
+    UpdateModelColorRequest,
     UserItem,
     UsersResponse,
     UvicornCommandRequest,
     UvicornCommandResponse,
+    VoteItem,
+    VoteRequest,
+    VoteResponse,
+    VoteSummaryItem,
+    VoteSummaryResponse,
+    VotesResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -276,6 +302,30 @@ def get_app_state(request: Request) -> Dict[str, Any]:
         "embedder": request.app.state.embedder,
         "redis_client": request.app.state.redis_client,
     }
+
+
+def _build_embedding_model_item(model: Dict[str, Any]) -> EmbeddingModelItem:
+    """Convert DB row dict to schema object."""
+    return EmbeddingModelItem(**model)
+
+
+def _is_valid_hex_color(value: str) -> bool:
+    """Validate HEX color codes like #fff or #ffffff."""
+    if not value or not value.startswith("#"):
+        return False
+    hex_part = value[1:]
+    if len(hex_part) not in (3, 6):
+        return False
+    allowed = set("0123456789abcdefABCDEF")
+    return all(ch in allowed for ch in hex_part)
+
+
+def _build_multi_search_cache_key(query: str, model_ids: List[int], top_k: int) -> str:
+    """Create deterministic cache key for multi-model search."""
+    normalized_query = " ".join(query.strip().lower().split())
+    digest = hashlib.sha256(normalized_query.encode("utf-8")).hexdigest()
+    ids_part = ",".join(str(mid) for mid in sorted(set(model_ids)))
+    return f"multi-search:{digest}:{ids_part}:k{top_k}"
 
 
 @app.post(
@@ -485,6 +535,294 @@ async def search_documents(
             # Don't fail the request if saving fails
 
     return response
+
+
+@app.post(
+    "/search/multi",
+    response_model=MultiModelSearchResponse,
+    tags=["search"],
+    summary="جستجو با چند مدل انتخابی",
+)
+async def multi_model_search(
+    payload: MultiModelSearchRequest,
+    app_state: Dict[str, Any] = Depends(get_app_state),
+) -> MultiModelSearchResponse:
+    """Perform semantic search across up to 3 embedding models."""
+    if not payload.model_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="حداقل یک مدل باید انتخاب شود.",
+        )
+
+    # Preserve selection order but ensure uniqueness
+    ordered_ids: List[int] = []
+    for model_id in payload.model_ids:
+        if model_id not in ordered_ids:
+            ordered_ids.append(model_id)
+
+    models = get_embedding_models_by_ids(ordered_ids)
+    model_map = {model["id"]: model for model in models}
+
+    missing_ids = [mid for mid in ordered_ids if mid not in model_map]
+    if missing_ids:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"مدل‌های {missing_ids} یافت نشدند.",
+        )
+
+    inactive_models = [model for model in models if not model["is_active"]]
+    if inactive_models:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="برخی از مدل‌های انتخاب شده غیرفعال هستند.",
+        )
+
+    redis_client = app_state.get("redis_client")
+    cache_key = _build_multi_search_cache_key(payload.query, ordered_ids, payload.top_k)
+    if redis_client:
+        try:
+            cached_raw = redis_client.get(cache_key)
+            if cached_raw:
+                cached_payload = json.loads(cached_raw)
+                return MultiModelSearchResponse(
+                    **cached_payload, cache_source="cache"
+                )
+        except Exception as exc:  # pragma: no cover - cache errors
+            logger.warning("Failed to read multi-search cache: %s", exc)
+
+    settings: Settings = app_state["settings"]
+    chroma_client = app_state["chroma_client"]
+
+    model_count = len(ordered_ids)
+    per_model_limit = (
+        payload.top_k
+        if model_count == 1
+        else min(payload.top_k, math.ceil(20 / model_count))
+    )
+    overall_limit = (
+        per_model_limit
+        if model_count == 1
+        else min(per_model_limit * model_count, 20)
+    )
+    fetch_n = min(max(per_model_limit, payload.top_k), settings.max_estimated_results)
+
+    include_fields = ["documents", "metadatas", "distances"]
+    per_model_results: Dict[int, List[Dict[str, Any]]] = {}
+
+    start = time.perf_counter()
+
+    for model_id in ordered_ids:
+        model_info = model_map[model_id]
+        try:
+            collection = chroma_client.get_collection(model_info["collection"])
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.exception(
+                "Failed to access collection '%s'", model_info["collection"]
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"عدم دسترسی به کالکشن {model_info['collection']}",
+            ) from exc
+
+        try:
+            query_func = partial(
+                collection.query,
+                query_texts=[payload.query],
+                n_results=fetch_n,
+                include=include_fields,
+            )
+            results = await anyio.to_thread.run_sync(query_func)
+        except Exception as exc:  # pragma: no cover - network errors
+            logger.exception(
+                "ChromaDB multi search failed",
+                extra={"error": str(exc), "collection": model_info["collection"]},
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"جستجو در کالکشن {model_info['collection']} ناموفق بود.",
+            ) from exc
+
+        ids = results.get("ids", [[]])[0]
+        distances = results.get("distances", [[]])[0]
+        documents = results.get("documents", [[]])[0]
+        metadatas = results.get("metadatas", [[]])[0]
+
+        model_items: List[Dict[str, Any]] = []
+        for index, doc_id in enumerate(ids):
+            distance = distances[index] if index < len(distances) else None
+            score = 1.0 - distance if distance is not None else None
+            model_items.append(
+                {
+                    "id": str(doc_id),
+                    "distance": distance,
+                    "score": score,
+                    "document": documents[index] if index < len(documents) else None,
+                    "metadata": metadatas[index] if index < len(metadatas) else {},
+                    "model_id": model_id,
+                    "model_color": model_info["color"],
+                    "embedding_model": model_info["embedding_model"],
+                    "embedding_provider": model_info["embedding_provider"],
+                }
+            )
+        per_model_results[model_id] = model_items
+
+    combined_results: List[Dict[str, Any]] = []
+    if model_count == 1:
+        combined_results = per_model_results[ordered_ids[0]][:per_model_limit]
+    else:
+        max_depth = max((len(per_model_results.get(mid, [])) for mid in ordered_ids), default=0)
+        for depth in range(max_depth):
+            for model_id in ordered_ids:
+                model_items = per_model_results.get(model_id, [])
+                if depth < len(model_items):
+                    combined_results.append(model_items[depth])
+                    if len(combined_results) >= overall_limit:
+                        break
+            if len(combined_results) >= overall_limit:
+                break
+
+    took_ms = (time.perf_counter() - start) * 1000.0
+    response_payload = {
+        "query": payload.query,
+        "model_ids": ordered_ids,
+        "returned": len(combined_results),
+        "results": combined_results,
+        "took_ms": took_ms,
+    }
+
+    if redis_client and combined_results:
+        try:
+            redis_client.setex(
+                cache_key,
+                24 * 60 * 60,
+                json.dumps(response_payload, ensure_ascii=False),
+            )
+        except Exception as exc:  # pragma: no cover - cache errors
+            logger.warning("Failed to store multi-search cache: %s", exc)
+
+    if payload.save:
+        for model_id in ordered_ids:
+            model_info = model_map[model_id]
+            model_results = per_model_results.get(model_id, [])[:per_model_limit]
+            if not model_results:
+                continue
+            # Convert to SearchResult for persistence
+            search_items = [
+                SearchResult(
+                    id=item["id"],
+                    distance=item["distance"],
+                    score=item["score"],
+                    document=item["document"],
+                    metadata=item["metadata"],
+                )
+                for item in model_results
+            ]
+            try:
+                save_search(
+                    query=payload.query,
+                    result_count=len(search_items),
+                    took_ms=took_ms,
+                    collection=model_info["collection"],
+                    provider=model_info["embedding_provider"],
+                    model=model_info["embedding_model"],
+                    results=[item.model_dump() for item in search_items],
+                )
+            except Exception as exc:  # pragma: no cover - db errors
+                logger.warning("Failed to save multi-search history: %s", exc)
+
+    return MultiModelSearchResponse(**response_payload, cache_source="live")
+
+
+@app.post("/search/vote", response_model=VoteResponse, tags=["search"])
+async def submit_vote(payload: VoteRequest) -> VoteResponse:
+    """Register like/dislike for a search result."""
+    if payload.model_id:
+        model = get_embedding_model(payload.model_id)
+        if not model:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="مدل انتخابی یافت نشد"
+            )
+
+    try:
+        save_search_vote(
+            guest_user_id=payload.guest_user_id,
+            query=payload.query,
+            vote_type=payload.vote_type,
+            model_id=payload.model_id,
+            result_id=payload.result_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+    stats = get_vote_stats(query=payload.query, model_id=payload.model_id)
+    return VoteResponse(success=True, likes=stats["likes"], dislikes=stats["dislikes"])
+
+
+@app.get("/admin/search/votes", response_model=VotesResponse, tags=["admin"])
+async def list_votes(
+    limit: int = Query(100, ge=1, le=500),
+    query: Optional[str] = Query(None, description="فیلتر براساس عبارت جستجو"),
+    model_id: Optional[int] = Query(None, description="فیلتر براساس مدل"),
+) -> VotesResponse:
+    try:
+        votes = get_search_votes(limit=limit, query=query, model_id=model_id)
+        vote_items = [
+            VoteItem(
+                id=vote["id"],
+                guest_user_id=vote["guest_user_id"],
+                query=vote["query"],
+                vote_type=vote["vote_type"],
+                created_at=vote["created_at"],
+                model_id=vote["model_id"],
+                result_id=vote["result_id"],
+                embedding_provider=vote["embedding_provider"],
+                embedding_model=vote["embedding_model"],
+                collection=vote["collection"],
+                color=vote["color"],
+            )
+            for vote in votes
+        ]
+        return VotesResponse(votes=vote_items)
+    except Exception as exc:
+        logger.exception("Failed to load votes", extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="خطا در دریافت رای‌ها",
+        ) from exc
+
+
+@app.get(
+    "/admin/search/votes/summary",
+    response_model=VoteSummaryResponse,
+    tags=["admin"],
+)
+async def votes_summary(
+    limit: int = Query(100, ge=1, le=500, description="تعداد ردیف‌های خلاصه"),
+) -> VoteSummaryResponse:
+    try:
+        summary_rows = get_vote_summary(limit=limit)
+        items = [
+            VoteSummaryItem(
+                query=row["query"],
+                model_id=row["model_id"],
+                embedding_provider=row["embedding_provider"],
+                embedding_model=row["embedding_model"],
+                collection=row["collection"],
+                likes=row["likes"],
+                dislikes=row["dislikes"],
+                last_vote_at=row["last_vote_at"],
+            )
+            for row in summary_rows
+        ]
+        return VoteSummaryResponse(items=items)
+    except Exception as exc:
+        logger.exception("Failed to load vote summary", extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="خطا در دریافت خلاصه رای‌ها",
+        ) from exc
 
 
 @app.get("/history", response_model=SearchHistoryResponse)
@@ -847,6 +1185,93 @@ async def get_admin_query_stats():
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve query stats: {exc}",
         ) from exc
+
+
+@app.get("/admin/models", response_model=EmbeddingModelsResponse, tags=["admin"])
+async def get_admin_models(
+    limit: int = Query(10, ge=1, le=10, description="حداکثر 10 مدل")
+) -> EmbeddingModelsResponse:
+    """List latest embedding models for admin view."""
+    try:
+        models = get_embedding_models(limit=limit)
+        return EmbeddingModelsResponse(
+            models=[_build_embedding_model_item(model) for model in models]
+        )
+    except Exception as exc:
+        logger.exception("Failed to list embedding models", extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="خطا در دریافت مدل‌ها",
+        ) from exc
+
+
+@app.get(
+    "/models/active",
+    response_model=EmbeddingModelsResponse,
+    tags=["search"],
+    summary="مدل‌های فعال برای جستجو",
+)
+async def get_active_models(
+    limit: int = Query(10, ge=1, le=10, description="حداکثر 10 مدل فعال")
+) -> EmbeddingModelsResponse:
+    try:
+        models = get_active_embedding_models(limit=limit)
+        return EmbeddingModelsResponse(
+            models=[_build_embedding_model_item(model) for model in models]
+        )
+    except Exception as exc:
+        logger.exception("Failed to list active models", extra={"error": str(exc)})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="خطا در دریافت مدل‌های فعال",
+        ) from exc
+
+
+@app.post(
+    "/admin/models/{model_id}/toggle",
+    response_model=EmbeddingModelItem,
+    tags=["admin"],
+)
+async def toggle_admin_model(
+    model_id: int, payload: ToggleModelRequest
+) -> EmbeddingModelItem:
+    updated = set_embedding_model_active(model_id, payload.is_active)
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="مدل یافت نشد"
+        )
+    model = get_embedding_model(model_id)
+    if not model:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="مدل یافت نشد"
+        )
+    return _build_embedding_model_item(model)
+
+
+@app.put(
+    "/admin/models/{model_id}/color",
+    response_model=EmbeddingModelItem,
+    tags=["admin"],
+)
+async def update_admin_model_color(
+    model_id: int, payload: UpdateModelColorRequest
+) -> EmbeddingModelItem:
+    if not _is_valid_hex_color(payload.color):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="کد رنگ نامعتبر است. مثال: #3B82F6",
+        )
+    updated = update_embedding_model_color(model_id, payload.color)
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="مدل یافت نشد"
+        )
+    model = get_embedding_model(model_id)
+    if not model:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="مدل یافت نشد"
+        )
+    return _build_embedding_model_item(model)
 
 
 @app.post("/admin/auth/users", status_code=status.HTTP_201_CREATED)
