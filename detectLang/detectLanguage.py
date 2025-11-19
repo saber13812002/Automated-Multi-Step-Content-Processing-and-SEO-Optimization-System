@@ -172,6 +172,26 @@ def iter_audio_files(root: str) -> List[str]:
     return sorted(files)
 
 
+def gather_audio_targets(audio_file: Optional[str], directory: Optional[str]) -> List[str]:
+    seen = set()
+    targets: List[str] = []
+    if audio_file:
+        file_path = Path(audio_file)
+        if file_path.is_file():
+            resolved = str(file_path.resolve())
+            if resolved not in seen:
+                seen.add(resolved)
+                targets.append(resolved)
+        else:
+            print(f"Audio file not found: {audio_file}")
+    if directory:
+        for fp in iter_audio_files(directory):
+            if fp not in seen:
+                seen.add(fp)
+                targets.append(fp)
+    return targets
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
@@ -179,9 +199,13 @@ def main() -> None:
         )
     )
     parser.add_argument(
+        "--audio-file",
+        type=str,
+        help="Process a single audio file (wav, mp3, m4a, flac, ogg, webm, aac).",
+    )
+    parser.add_argument(
         "--directory",
         type=str,
-        required=True,
         help="Directory containing audio files (wav, mp3, m4a, flac, ogg, webm, aac)",
     )
     parser.add_argument(
@@ -231,6 +255,9 @@ def main() -> None:
 
     args = parser.parse_args()
 
+    if not args.audio_file and not args.directory:
+        parser.error("Provide --audio-file for single run, --directory for batch, or both.")
+
     model = load_asr_model(
         model_size=args.model_size,
         device=args.device,
@@ -238,7 +265,7 @@ def main() -> None:
         compute_type=args.compute_type,
     )
 
-    files = iter_audio_files(args.directory)
+    files = gather_audio_targets(args.audio_file, args.directory)
     if not files:
         print("No audio files found.")
         return
@@ -258,10 +285,8 @@ def main() -> None:
             end_s = it["end_time"]
             print(f"  Language: {lang} | Start: {start_s:.2f}s | End: {end_s:.2f}s")
 
-        # Optional JSON output
-        if args.output_dir is not None:
-            out_path = write_json_report(fp, intervals, args.output_dir)
-            print(f"  Saved: {out_path}")
+        out_path = write_json_report(fp, intervals, args.output_dir)
+        print(f"  Saved report: {out_path}")
 
 
 if __name__ == "__main__":
