@@ -104,6 +104,9 @@ class MultiModelSearchResponse(BaseModel):
     results: List[MultiModelResult]
     took_ms: float
     cache_source: str = Field(description="منبع نتایج (cache یا realtime)")
+    errors: Optional[List[Dict[str, str]]] = Field(
+        None, description="خطاهای مدل‌های ناموفق (collection, error_message)"
+    )
 
 
 class HealthComponent(BaseModel):

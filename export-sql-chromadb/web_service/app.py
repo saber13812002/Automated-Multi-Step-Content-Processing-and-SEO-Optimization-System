@@ -608,21 +608,28 @@ async def multi_model_search(
 
     include_fields = ["documents", "metadatas", "distances"]
     per_model_results: Dict[int, List[Dict[str, Any]]] = {}
+    model_errors: List[Dict[str, str]] = []
 
     start = time.perf_counter()
 
     for model_id in ordered_ids:
         model_info = model_map[model_id]
+        collection_name = model_info["collection"]
+        model_display_name = model_info["embedding_model"]
+        
         try:
-            collection = chroma_client.get_collection(model_info["collection"])
+            collection = chroma_client.get_collection(collection_name)
         except Exception as exc:  # pragma: no cover - network errors
-            logger.exception(
-                "Failed to access collection '%s'", model_info["collection"]
+            error_msg = f"عدم دسترسی به کالکشن {collection_name}"
+            logger.warning(
+                "Failed to access collection '%s': %s", collection_name, exc
             )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"عدم دسترسی به کالکشن {model_info['collection']}",
-            ) from exc
+            model_errors.append({
+                "collection": collection_name,
+                "model": model_display_name,
+                "error": error_msg
+            })
+            continue  # Skip this model and continue with others
 
         try:
             query_func = partial(
@@ -633,14 +640,18 @@ async def multi_model_search(
             )
             results = await anyio.to_thread.run_sync(query_func)
         except Exception as exc:  # pragma: no cover - network errors
-            logger.exception(
-                "ChromaDB multi search failed",
-                extra={"error": str(exc), "collection": model_info["collection"]},
+            error_msg = f"جستجو در کالکشن {collection_name} ناموفق بود"
+            logger.warning(
+                "ChromaDB multi search failed for collection '%s': %s",
+                collection_name,
+                exc,
             )
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail=f"جستجو در کالکشن {model_info['collection']} ناموفق بود.",
-            ) from exc
+            model_errors.append({
+                "collection": collection_name,
+                "model": model_display_name,
+                "error": error_msg
+            })
+            continue  # Skip this model and continue with others
 
         ids = results.get("ids", [[]])[0]
         distances = results.get("distances", [[]])[0]
@@ -666,13 +677,27 @@ async def multi_model_search(
             )
         per_model_results[model_id] = model_items
 
+    # If all models failed, return an error
+    if not per_model_results and model_errors:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"جستجو در تمام مدل‌ها ناموفق بود. {model_errors[0]['error']}",
+        )
+
+    # Only use successful models for combining results
+    successful_model_ids = [mid for mid in ordered_ids if mid in per_model_results]
+    successful_count = len(successful_model_ids)
+    
     combined_results: List[Dict[str, Any]] = []
-    if model_count == 1:
-        combined_results = per_model_results[ordered_ids[0]][:per_model_limit]
+    if successful_count == 0:
+        # This should not happen due to check above, but just in case
+        combined_results = []
+    elif successful_count == 1:
+        combined_results = per_model_results[successful_model_ids[0]][:per_model_limit]
     else:
-        max_depth = max((len(per_model_results.get(mid, [])) for mid in ordered_ids), default=0)
+        max_depth = max((len(per_model_results.get(mid, [])) for mid in successful_model_ids), default=0)
         for depth in range(max_depth):
-            for model_id in ordered_ids:
+            for model_id in successful_model_ids:
                 model_items = per_model_results.get(model_id, [])
                 if depth < len(model_items):
                     combined_results.append(model_items[depth])
@@ -688,6 +713,7 @@ async def multi_model_search(
         "returned": len(combined_results),
         "results": combined_results,
         "took_ms": took_ms,
+        "errors": model_errors if model_errors else None,
     }
 
     if redis_client and combined_results:
@@ -701,7 +727,8 @@ async def multi_model_search(
             logger.warning("Failed to store multi-search cache: %s", exc)
 
     if payload.save:
-        for model_id in ordered_ids:
+        # Only save successful models
+        for model_id in successful_model_ids:
             model_info = model_map[model_id]
             model_results = per_model_results.get(model_id, [])[:per_model_limit]
             if not model_results:

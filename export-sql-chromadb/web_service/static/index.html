@@ -969,7 +969,8 @@
 
         function displayResults(data, options = {}) {
             const { isMulti = false, selectedModels = [] } = options;
-            if (!data.results || data.results.length === 0) {
+            // Show errors even if no results (but some models succeeded)
+            if ((!data.results || data.results.length === 0) && (!data.errors || data.errors.length === 0)) {
                 resultsContainer.innerHTML = `
                     <div class="results-container">
                         <div class="no-results">
@@ -978,6 +979,29 @@
                         </div>
                     </div>
                 `;
+                return;
+            }
+            
+            // If we have errors but no results, show errors only
+            if ((!data.results || data.results.length === 0) && data.errors && data.errors.length > 0) {
+                let html = `
+                    <div class="results-container">
+                        <div class="results-header">
+                            <h2>خطا در جستجو</h2>
+                        </div>
+                        <div style="margin: 20px 0; padding: 15px; background: #f8d7da; border: 1px solid #dc3545; border-radius: 8px;">
+                            <h3 style="color: #721c24; margin-bottom: 10px;">❌ خطا در تمام مدل‌ها:</h3>
+                            <ul style="margin: 0; padding-right: 20px; color: #721c24;">
+                                ${data.errors.map(err => `
+                                    <li style="margin-bottom: 5px;">
+                                        <strong>${escapeHtml(err.model || err.collection)}</strong>: ${escapeHtml(err.error)}
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    </div>
+                `;
+                resultsContainer.innerHTML = html;
                 return;
             }
 
@@ -994,6 +1018,25 @@
                         </div>
                     </div>
             `;
+            
+            // Display errors if any (for multi-model search)
+            if (data.errors && data.errors.length > 0) {
+                html += `
+                    <div style="margin: 20px 0; padding: 15px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px;">
+                        <h3 style="color: #856404; margin-bottom: 10px;">⚠️ خطا در برخی مدل‌ها:</h3>
+                        <ul style="margin: 0; padding-right: 20px; color: #856404;">
+                            ${data.errors.map(err => `
+                                <li style="margin-bottom: 5px;">
+                                    <strong>${escapeHtml(err.model || err.collection)}</strong>: ${escapeHtml(err.error)}
+                                </li>
+                            `).join('')}
+                        </ul>
+                        <p style="margin-top: 10px; margin-bottom: 0; color: #856404; font-size: 0.9rem;">
+                            نتایج مدل‌های موفق در زیر نمایش داده می‌شوند.
+                        </p>
+                    </div>
+                `;
+            }
             
             // Add pagination controls if available
             if (data.pagination) {
