@@ -16,6 +16,11 @@ This project is an Automated Multi-Step Content Processing and SEO Optimization 
 
 It is designed to automate various content processing and optimization tasks, including subtitle generation, WordPress category crawling and processing, and media download.
 
+## Language Segmentation Pipeline
+
+برای راهنمای مرحله‌به‌مرحله پردازش فایل‌های صوتی (تشخیص زبان، برش، دیتابیس و تجمیع زیرنویس) به
+[LANGUAGE_SEGMENT_PIPELINE.md](LANGUAGE_SEGMENT_PIPELINE.md) مراجعه کنید.
+
 Main Function Points
 Automated subtitle generation
 Automated WordPress category crawling and processing
