@@ -345,6 +345,7 @@
 
 - 📖 [README.md](README.md) - راهنمای کامل نصب و استفاده
 - 📖 [README.web_service.md](README.web_service.md) - راهنمای سرویس وب
+- 📖 [IMPROVEMENTS.md](IMPROVEMENTS.md) - پیشنهادات بهبود و بهینه‌سازی
 - 🔧 [.env.example](.env.example) - نمونه فایل تنظیمات
 
 ---
