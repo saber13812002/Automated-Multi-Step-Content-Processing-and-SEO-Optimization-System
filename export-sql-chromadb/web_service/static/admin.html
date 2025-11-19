@@ -1295,7 +1295,7 @@
         function renderEmbeddingModels(models) {
             const listEl = document.getElementById('modelsList');
             if (!models || models.length === 0) {
-                listEl.innerHTML = '<p style="color:#666;">هیچ مدل فعالی یافت نشد.</p>';
+                listEl.innerHTML = '<p style="color:#666; padding:20px; text-align:center;">هیچ مدلی یافت نشد. لطفاً مطمئن شوید که حداقل یک Job با status "completed" در سیستم وجود دارد.</p>';
                 return;
             }
 

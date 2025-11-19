@@ -556,6 +556,12 @@ def get_latest_completed_model_jobs(limit: int = 10) -> List[Dict[str, Any]]:
     """Return latest completed jobs per unique (provider, model, collection)."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
+        # First check if there are any completed jobs
+        cursor.execute("SELECT COUNT(*) as cnt FROM export_jobs WHERE status = 'completed' AND completed_at IS NOT NULL")
+        count_row = cursor.fetchone()
+        total_completed = count_row["cnt"] if count_row else 0
+        logger.debug("Found %d completed jobs in database", total_completed)
+        
         cursor.execute(
             """
             SELECT ej.id as job_id,
@@ -588,6 +594,7 @@ def get_latest_completed_model_jobs(limit: int = 10) -> List[Dict[str, Any]]:
             (limit,),
         )
         rows = cursor.fetchall()
+        logger.debug("Found %d unique model combinations from completed jobs", len(rows))
 
     jobs: List[Dict[str, Any]] = []
     for row in rows:
@@ -613,7 +620,9 @@ def sync_embedding_models_from_jobs(limit: int = 10) -> None:
     """Ensure embedding_models table has the most recent completed jobs."""
     latest_jobs = get_latest_completed_model_jobs(limit)
     if not latest_jobs:
+        logger.debug("No completed jobs found to sync embedding models")
         return
+    logger.debug("Syncing %d embedding models from completed jobs", len(latest_jobs))
 
     now = datetime.utcnow().isoformat()
     with get_db_connection() as conn:
@@ -951,20 +960,20 @@ def get_query_stats() -> Dict[str, Any]:
         cursor.execute("""
             SELECT 
                 COUNT(*) as total,
-                SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
-                SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
-                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-                SUM(search_count) as total_searches
+                COALESCE(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END), 0) as approved,
+                COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0) as rejected,
+                COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) as pending,
+                COALESCE(SUM(search_count), 0) as total_searches
             FROM query_approvals
         """)
         row = cursor.fetchone()
         
         return {
-            "total": row["total"] if row else 0,
-            "approved": row["approved"] if row else 0,
-            "rejected": row["rejected"] if row else 0,
-            "pending": row["pending"] if row else 0,
-            "total_searches": row["total_searches"] if row else 0,
+            "total": row["total"] if row and row["total"] is not None else 0,
+            "approved": row["approved"] if row and row["approved"] is not None else 0,
+            "rejected": row["rejected"] if row and row["rejected"] is not None else 0,
+            "pending": row["pending"] if row and row["pending"] is not None else 0,
+            "total_searches": row["total_searches"] if row and row["total_searches"] is not None else 0,
         }
 
 
