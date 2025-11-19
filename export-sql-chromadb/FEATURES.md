@@ -12,6 +12,9 @@
 - [Web Service API](#web-service-api)
 - [Admin Panel](#admin-panel)
 - [Search Features](#search-features)
+- [Multi-Model Search](#multi-model-search)
+- [Embedding Models Management](#embedding-models-management)
+- [User Feedback System](#user-feedback-system)
 - [Database و Job Tracking](#database-و-job-tracking)
 - [UI و Frontend](#ui-و-frontend)
 - [Configuration و Environment](#configuration-و-environment)
@@ -67,12 +70,17 @@
 
 ### ✅ Endpoints
 
-#### Search Endpoint
+#### Search Endpoints
 - **`POST /search`**: جستجوی معنایی در ChromaDB
   - پشتیبانی از pagination
   - نمایش total documents
   - تخمین تعداد نتایج
   - ذخیره خودکار نتایج در history (اختیاری)
+- **`POST /search/multi`**: جستجوی چند مدلی
+  - جستجوی همزمان در چند مدل
+  - ترکیب نتایج به صورت یکی در میان
+  - مدیریت خطا برای مدل‌های ناموفق
+  - Redis caching
 
 #### Health Check
 - **`GET /health`**: بررسی وضعیت سرویس‌ها
@@ -83,6 +91,17 @@
 #### Search History
 - **`GET /history`**: لیست تاریخچه جستجوها با pagination
 - **`GET /history/{search_id}`**: جزئیات یک جستجوی خاص
+
+#### Embedding Models
+- **`GET /admin/models`**: لیست مدل‌های امبدینگ (حداکثر 10)
+- **`POST /admin/models/{model_id}/toggle`**: تغییر وضعیت فعال/غیرفعال
+- **`PUT /admin/models/{model_id}/color`**: تغییر رنگ مدل
+- **`GET /models/active`**: دریافت مدل‌های فعال برای صفحه جستجو
+
+#### User Feedback
+- **`POST /search/vote`**: ثبت رای (لایک/دیسلایک)
+- **`GET /admin/search/votes`**: لیست رای‌های ثبت شده
+- **`GET /admin/search/votes/summary`**: آمار کلی رای‌ها
 
 #### Admin Panel
 - **`GET /admin`**: صفحه HTML برای admin panel
@@ -142,6 +161,129 @@
 
 ---
 
+## Multi-Model Search
+
+### ✅ جستجوی چند مدلی (Multi-Model Search)
+
+- **انتخاب چند مدل**: امکان انتخاب تا 3 مدل امبدینگ برای جستجوی همزمان
+- **جستجوی موازی**: اجرای جستجو در تمام مدل‌های انتخابی به صورت موازی
+- **ترکیب نتایج**: نمایش نتایج به صورت یکی در میان (interleaved) از مدل‌های مختلف
+- **محدودیت نتایج**: 
+  - در صورت انتخاب یک مدل: نمایش تا `top_k` نتیجه
+  - در صورت انتخاب چند مدل: حداکثر 20 نتیجه کل (تقسیم شده بین مدل‌ها)
+- **مدیریت خطا**: 
+  - در صورت خطای یک مدل، جستجو در مدل‌های دیگر ادامه می‌یابد
+  - نمایش پیام خطا برای مدل‌های ناموفق
+  - نمایش نتایج مدل‌های موفق
+- **Redis Caching**: ذخیره نتایج جستجوی چند مدلی در Redis برای بهبود عملکرد
+- **Model Tags**: نمایش برچسب مدل و رنگ اختصاصی برای هر نتیجه
+
+### ✅ API Endpoint
+
+- **`POST /search/multi`**: جستجوی چند مدلی
+  - پارامترها: `query`, `model_ids` (لیست ID مدل‌ها), `top_k`, `save`
+  - پاسخ: نتایج ترکیبی با تگ مدل و رنگ، لیست خطاها (در صورت وجود)
+
+---
+
+## Embedding Models Management
+
+### ✅ مدیریت مدل‌های امبدینگ
+
+- **همگام‌سازی خودکار**: 
+  - شناسایی خودکار مدل‌هایی که آخرین job موفق را کامل کرده‌اند
+  - نمایش حداکثر 10 مدل غیرتکراری (بر اساس provider, model, collection)
+  - به‌روزرسانی خودکار در startup
+- **فعال/غیرفعال کردن**: امکان فعال یا غیرفعال کردن هر مدل توسط ادمین
+- **رنگ‌بندی اختصاصی**: 
+  - اختصاص رنگ پیش‌فرض منحصر به فرد برای هر مدل
+  - امکان تغییر رنگ توسط ادمین در پنل مدیریت
+  - نمایش رنگ در نتایج جستجو
+- **نمایش در Admin Panel**: 
+  - لیست تمام مدل‌های شناسایی شده
+  - نمایش اطلاعات job (تاریخ تکمیل، آمار مستندات)
+  - دکمه‌های فعال/غیرفعال و تغییر رنگ
+- **نمایش در Search Page**: 
+  - لیست مدل‌های فعال با checkbox
+  - انتخاب حداکثر 3 مدل
+  - تیک پیش‌فرض روی همه مدل‌های فعال
+
+### ✅ Database Schema
+
+- **جدول `embedding_models`**:
+  - `id`, `embedding_provider`, `embedding_model`, `collection`
+  - `job_id`, `is_active`, `color`
+  - `created_at`, `updated_at`, `last_completed_job_at`
+- **توابع مدیریت**:
+  - `sync_embedding_models_from_jobs()`: همگام‌سازی از export_jobs
+  - `get_embedding_models()`: دریافت لیست مدل‌ها
+  - `get_active_embedding_models()`: دریافت فقط مدل‌های فعال
+  - `set_embedding_model_active()`: تغییر وضعیت فعال/غیرفعال
+  - `update_embedding_model_color()`: تغییر رنگ مدل
+
+### ✅ API Endpoints
+
+- **`GET /admin/models`**: دریافت لیست مدل‌ها (حداکثر 10)
+- **`POST /admin/models/{model_id}/toggle`**: تغییر وضعیت فعال/غیرفعال
+- **`PUT /admin/models/{model_id}/color`**: تغییر رنگ مدل
+- **`GET /models/active`**: دریافت مدل‌های فعال برای صفحه جستجو
+
+---
+
+## User Feedback System
+
+### ✅ سیستم لایک/دیسلایک
+
+- **رای‌دهی به نتایج**: 
+  - دکمه لایک/دیسلایک برای هر نتیجه جستجو
+  - دکمه لایک/دیسلایک کلی برای کل نتایج یک مدل
+  - بازخورد فوری به کاربر
+- **Guest User System**: 
+  - شناسایی کاربر مهمان با `localStorage`
+  - تولید خودکار `guest_user_id` منحصر به فرد
+  - ذخیره در `localStorage` برای ردیابی بین جلسات
+  - امکان override در آینده با سیستم احراز هویت
+- **ذخیره‌سازی رای‌ها**: 
+  - ذخیره در جدول `search_votes` در SQLite
+  - ثبت query، model_id، result_id، vote_type
+  - ثبت timestamp برای هر رای
+- **نمایش در Admin Panel**: 
+  - لیست تمام رای‌ها با فیلتر بر اساس query و model
+  - آمار کلی رای‌ها (likes/dislikes) به تفکیک query و model
+  - نمایش تاریخ آخرین رای
+
+### ✅ Database Schema
+
+- **جدول `search_votes`**:
+  - `id`, `guest_user_id`, `query`
+  - `search_id`, `result_id`, `model_id`
+  - `vote_type` (like/dislike)
+  - `created_at`
+- **توابع مدیریت**:
+  - `record_search_vote()`: ثبت رای جدید
+  - `get_search_votes()`: دریافت لیست رای‌ها با فیلتر
+  - `get_search_vote_summary()`: دریافت آمار کلی رای‌ها
+
+### ✅ API Endpoints
+
+- **`POST /search/vote`**: ثبت رای (لایک/دیسلایک)
+  - پارامترها: `query`, `model_id`, `result_id`, `vote_type`, `guest_user_id`
+- **`GET /admin/search/votes`**: دریافت لیست رای‌ها
+  - فیلتر بر اساس `query` و `model_id`
+- **`GET /admin/search/votes/summary`**: دریافت آمار کلی رای‌ها
+
+### ✅ UI Features
+
+- **دکمه‌های رای‌دهی**: 
+  - استایل متمایز برای لایک (سبز) و دیسلایک (قرمز)
+  - بازخورد فوری پس از ثبت رای
+  - نمایش پیام تأیید
+- **بخش رای کلی**: 
+  - نمایش در پایین نتایج جستجو
+  - امکان رای دادن به کل نتایج یک مدل
+
+---
+
 ## Database و Job Tracking
 
 ### ✅ SQLite Database
@@ -163,6 +305,20 @@
   - Error messages
   - Command line arguments (JSON)
 
+- **Embedding Models Table**: ذخیره اطلاعات مدل‌های امبدینگ
+  - Provider, Model, Collection
+  - Job ID (آخرین job موفق)
+  - Status (active/inactive)
+  - Color (رنگ اختصاصی)
+  - Timestamps (created, updated, last_completed_job)
+
+- **Search Votes Table**: ذخیره رای‌های کاربران
+  - Guest user ID
+  - Query, Search ID, Result ID
+  - Model ID
+  - Vote type (like/dislike)
+  - Timestamp
+
 ### ✅ Database Functions
 
 - `init_database()`: ایجاد جداول در صورت عدم وجود
@@ -173,6 +329,15 @@
 - `update_export_job()`: به‌روزرسانی وضعیت job
 - `get_export_jobs()`: دریافت لیست jobs (50 اخیر)
 - `get_export_job()`: دریافت جزئیات یک job
+- `get_latest_completed_model_jobs()`: دریافت آخرین job موفق برای هر مدل
+- `sync_embedding_models_from_jobs()`: همگام‌سازی مدل‌ها از jobs
+- `get_embedding_models()`: دریافت لیست مدل‌ها
+- `get_active_embedding_models()`: دریافت مدل‌های فعال
+- `set_embedding_model_active()`: تغییر وضعیت فعال/غیرفعال
+- `update_embedding_model_color()`: تغییر رنگ مدل
+- `record_search_vote()`: ثبت رای کاربر
+- `get_search_votes()`: دریافت لیست رای‌ها
+- `get_search_vote_summary()`: دریافت آمار رای‌ها
 
 ### ✅ Job Tracking Features
 
@@ -207,10 +372,27 @@
   - نمایش شماره صفحه
   - نمایش estimated results
   
-- **Search History**:
+- **Search History**: 
   - لیست تاریخچه جستجوها
   - Deduplication (گروه‌بندی بر اساس query)
   - Click to reuse query
+
+- **Model Selection**:
+  - نمایش مدل‌های فعال با checkbox
+  - انتخاب حداکثر 3 مدل
+  - تیک پیش‌فرض روی همه
+  - نمایش رنگ هر مدل
+
+- **Multi-Model Results Display**:
+  - نمایش نتایج به صورت یکی در میان
+  - برچسب مدل با رنگ اختصاصی
+  - نمایش خطاهای مدل‌های ناموفق (در صورت وجود)
+  - پیام راهنما برای مدل‌های ناموفق
+
+- **Vote Buttons**:
+  - دکمه لایک/دیسلایک برای هر نتیجه
+  - دکمه رای کلی برای کل نتایج
+  - بازخورد فوری پس از ثبت رای
   
 - **Config Info**: نمایش collection و embedding model در header
 
@@ -227,6 +409,19 @@
   - آمار و تنظیمات
   - Command line arguments
   - Error messages
+
+- **Embedding Models Management**:
+  - لیست مدل‌های شناسایی شده (حداکثر 10)
+  - نمایش اطلاعات job و آمار
+  - دکمه فعال/غیرفعال
+  - انتخاب رنگ برای هر مدل
+  - پیام راهنما در صورت عدم وجود مدل
+
+- **Search Votes Management**:
+  - لیست تمام رای‌های ثبت شده
+  - فیلتر بر اساس query و model
+  - آمار کلی رای‌ها (likes/dislikes)
+  - نمایش تاریخ و جزئیات هر رای
   
 - **Auto-refresh**: امکان به‌روزرسانی دستی
 - **Responsive Design**: طراحی responsive
@@ -312,7 +507,41 @@
 
 ## Changelog
 
-### Version 1.0.0 (Current)
+### Version 1.1.0 (Current)
+
+#### Multi-Model Search
+- ✅ جستجوی چند مدلی (تا 3 مدل همزمان)
+- ✅ ترکیب نتایج به صورت یکی در میان
+- ✅ مدیریت خطا برای مدل‌های ناموفق
+- ✅ Redis caching برای نتایج چند مدلی
+- ✅ نمایش برچسب و رنگ مدل در نتایج
+
+#### Embedding Models Management
+- ✅ همگام‌سازی خودکار مدل‌ها از export_jobs
+- ✅ فعال/غیرفعال کردن مدل‌ها توسط ادمین
+- ✅ اختصاص و تغییر رنگ برای هر مدل
+- ✅ نمایش در admin panel و search page
+- ✅ محدودیت 10 مدل و انتخاب حداکثر 3 مدل
+
+#### User Feedback System
+- ✅ سیستم لایک/دیسلایک برای نتایج
+- ✅ Guest user tracking با localStorage
+- ✅ ذخیره رای‌ها در database
+- ✅ نمایش آمار رای‌ها در admin panel
+
+#### Database Enhancements
+- ✅ جدول `embedding_models` برای مدیریت مدل‌ها
+- ✅ جدول `search_votes` برای ذخیره رای‌ها
+- ✅ توابع مدیریت مدل‌ها و رای‌ها
+
+#### UI Enhancements
+- ✅ انتخاب مدل در صفحه جستجو
+- ✅ نمایش خطاهای مدل‌های ناموفق
+- ✅ دکمه‌های رای‌دهی در نتایج
+- ✅ بخش مدیریت مدل‌ها در admin panel
+- ✅ بخش آمار رای‌ها در admin panel
+
+### Version 1.0.0
 
 #### Export Script
 - ✅ پیاده‌سازی export script با segmentation
@@ -350,5 +579,5 @@
 
 ---
 
-**آخرین به‌روزرسانی**: 2025-01-16
+**آخرین به‌روزرسانی**: 2025-01-22
 
