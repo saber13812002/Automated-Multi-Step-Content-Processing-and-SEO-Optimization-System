@@ -367,6 +367,31 @@ async def search_documents(
     collection = app_state["collection"]
     embedder = app_state["embedder"]
 
+    # Validate that query embedding model matches collection's export model
+    try:
+        collection_metadata = await anyio.to_thread.run_sync(lambda: collection.metadata)
+        if collection_metadata and isinstance(collection_metadata, dict):
+            export_provider = collection_metadata.get("embedding_provider")
+            export_model = collection_metadata.get("embedding_model")
+            if export_provider and export_model:
+                if export_provider != settings.embedding_provider or export_model != settings.embedding_model:
+                    warning_msg = (
+                        f"⚠️  Warning: Query model mismatch! "
+                        f"Collection was exported with {export_provider}/{export_model}, "
+                        f"but query is using {settings.embedding_provider}/{settings.embedding_model}. "
+                        f"Results may be inaccurate. Update your .env to match the export model."
+                    )
+                    logger.warning(warning_msg)
+                    # Don't fail the request, but log the warning
+                else:
+                    logger.debug(
+                        "✅ Query model matches collection export model: %s/%s",
+                        export_provider,
+                        export_model,
+                    )
+    except Exception as meta_exc:
+        logger.warning("Could not validate embedding model match: %s", meta_exc)
+
     start = time.perf_counter()
     
     # Calculate n_results based on pagination
@@ -626,6 +651,34 @@ async def multi_model_search(
         
         try:
             collection = chroma_client.get_collection(collection_name)
+            
+            # Validate that query embedding model matches collection's export model
+            try:
+                collection_metadata = await anyio.to_thread.run_sync(lambda: collection.metadata)
+                if collection_metadata and isinstance(collection_metadata, dict):
+                    export_provider = collection_metadata.get("embedding_provider")
+                    export_model = collection_metadata.get("embedding_model")
+                    query_provider = model_info["embedding_provider"]
+                    query_model = model_info["embedding_model"]
+                    if export_provider and export_model:
+                        if export_provider != query_provider or export_model != query_model:
+                            warning_msg = (
+                                f"⚠️  Model mismatch for collection '{collection_name}': "
+                                f"exported with {export_provider}/{export_model}, "
+                                f"but query uses {query_provider}/{query_model}. "
+                                f"Results may be inaccurate."
+                            )
+                            logger.warning(warning_msg)
+                        else:
+                            logger.debug(
+                                "✅ Model match for collection '%s': %s/%s",
+                                collection_name,
+                                export_provider,
+                                export_model,
+                            )
+            except Exception as meta_exc:
+                logger.debug("Could not validate model match for '%s': %s", collection_name, meta_exc)
+                
         except Exception as exc:  # pragma: no cover - network errors
             error_msg = f"عدم دسترسی به کالکشن {collection_name}"
             logger.warning(

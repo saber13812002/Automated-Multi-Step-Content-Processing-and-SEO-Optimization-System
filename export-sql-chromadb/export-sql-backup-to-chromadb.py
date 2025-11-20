@@ -680,6 +680,8 @@ def export_to_chroma(args: argparse.Namespace, job_id: Optional[int] = None) -> 
             "context_length": args.context,
             "min_paragraph_lines": args.min_paragraph_lines,
             "title_weight": args.title_weight,
+            "embedding_provider": args.embedding_provider,
+            "embedding_model": args.embedding_model,
         },
         reset=args.reset,
     )
