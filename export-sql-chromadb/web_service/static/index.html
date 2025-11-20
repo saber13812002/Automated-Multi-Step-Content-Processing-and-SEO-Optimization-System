@@ -361,6 +361,12 @@
             margin-top: 30px;
         }
 
+        @media (max-width: 768px) {
+            #historyContainer {
+                grid-template-columns: 1fr !important;
+            }
+        }
+
         .history-section h2 {
             margin-bottom: 20px;
             color: #333;
@@ -652,7 +658,16 @@
         <div id="historySection" class="history-section" style="display: none;">
             <h2>تاریخچه جستجو</h2>
             <button class="history-button" onclick="loadHistory()">بارگذاری تاریخچه</button>
-            <div id="historyContainer"></div>
+            <div id="historyContainer" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <h3 style="margin-bottom: 10px; color: #667eea;">جستجوهای اخیر</h3>
+                    <div id="recentHistoryContainer"></div>
+                </div>
+                <div>
+                    <h3 style="margin-bottom: 10px; color: #667eea;">پربسامدترین جستجوها</h3>
+                    <div id="topQueriesContainer"></div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1321,26 +1336,47 @@
         };
 
         async function loadHistory() {
+            const historyContainer = document.getElementById('historyContainer');
+            const recentContainer = document.getElementById('recentHistoryContainer');
+            const topContainer = document.getElementById('topQueriesContainer');
+            
             try {
-                const response = await fetch(`${API_BASE_URL}/history?limit=10`, {
+                // Load recent searches
+                const recentResponse = await fetch(`${API_BASE_URL}/history?limit=10`, {
                     headers: {
                         'Accept': 'application/json; charset=utf-8',
                     }
                 });
-                if (!response.ok) {
+                if (!recentResponse.ok) {
                     throw new Error('خطا در بارگذاری تاریخچه');
                 }
-                // Ensure UTF-8 encoding when parsing JSON
-                const data = await response.json();
-                displayHistory(data);
+                const recentData = await recentResponse.json();
+                displayRecentHistory(recentData, recentContainer);
+                
+                // Load top queries
+                try {
+                    const topResponse = await fetch(`${API_BASE_URL}/history/top?limit=10&min_count=1`, {
+                        headers: {
+                            'Accept': 'application/json; charset=utf-8',
+                        }
+                    });
+                    if (topResponse.ok) {
+                        const topData = await topResponse.json();
+                        displayTopQueries(topData, topContainer);
+                    } else {
+                        topContainer.innerHTML = '<p style="color: #666;">خطا در بارگذاری پربسامدترین جستجوها</p>';
+                    }
+                } catch (topError) {
+                    topContainer.innerHTML = '<p style="color: #666;">خطا در بارگذاری پربسامدترین جستجوها</p>';
+                }
             } catch (error) {
                 historyContainer.innerHTML = `<div class="error">خطا: ${error.message}</div>`;
             }
         }
 
-        function displayHistory(data) {
+        function displayRecentHistory(data, container) {
             if (!data.searches || data.searches.length === 0) {
-                historyContainer.innerHTML = '<p>تاریخچه‌ای وجود ندارد.</p>';
+                container.innerHTML = '<p style="color: #666;">تاریخچه‌ای وجود ندارد.</p>';
                 return;
             }
 
@@ -1379,7 +1415,7 @@
                 // Use data attribute to safely store query for click handler
                 const queryEscaped = escapeHtml(search.query);
                 html += `
-                    <div class="result-item" style="padding: 15px; cursor: pointer;" 
+                    <div class="result-item" style="padding: 15px; cursor: pointer; border: 1px solid #e0e0e0; border-radius: 8px; background: #fafafa;" 
                          data-query="${queryEscaped.replace(/"/g, '&quot;')}" 
                          onclick="loadQueryFromHistory(this.dataset.query)">
                         <div style="margin-bottom: 10px;">
@@ -1395,7 +1431,34 @@
                 `;
             });
             html += '</div>';
-            historyContainer.innerHTML = html;
+            container.innerHTML = html;
+        }
+
+        function displayTopQueries(data, container) {
+            if (!data.queries || data.queries.length === 0) {
+                container.innerHTML = '<p style="color: #666;">پربسامدترین جستجوها موجود نیست.</p>';
+                return;
+            }
+
+            let html = '<div style="display: grid; gap: 15px;">';
+            data.queries.forEach((query, index) => {
+                const queryEscaped = escapeHtml(query.query);
+                html += `
+                    <div class="result-item" style="padding: 15px; cursor: pointer; border: 1px solid #e0e0e0; border-radius: 8px; background: #fafafa;" 
+                         data-query="${queryEscaped.replace(/"/g, '&quot;')}" 
+                         onclick="loadQueryFromHistory(this.dataset.query)">
+                        <div style="margin-bottom: 10px;">
+                            <strong>${queryEscaped}</strong>
+                            <span style="color: #667eea; font-weight: bold; margin-right: 10px;">(${query.search_count} بار)</span>
+                        </div>
+                        <div style="color: #666; font-size: 0.9rem;">
+                            آخرین جستجو: ${query.last_searched_at ? new Date(query.last_searched_at).toLocaleString('fa-IR') : '-'}
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            container.innerHTML = html;
         }
 
         function escapeHtml(text) {

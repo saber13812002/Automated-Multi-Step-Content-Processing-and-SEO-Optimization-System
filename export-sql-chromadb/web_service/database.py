@@ -869,23 +869,39 @@ def get_query_approvals(
     min_count: int = 0,
     status: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
-    """Get query approvals with filters."""
+    """Get query approvals with filters, combining search_history with query_approvals."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         
+        # Build query that groups search_history by query and LEFT JOINs with query_approvals
         query = """
-            SELECT id, query, status, approved_at, rejected_at, notes, 
-                   search_count, last_searched_at
-            FROM query_approvals
-            WHERE search_count >= ?
+            SELECT 
+                COALESCE(qa.id, NULL) as id,
+                sh_grouped.query,
+                COALESCE(qa.status, 'pending') as status,
+                qa.approved_at,
+                qa.rejected_at,
+                qa.notes,
+                sh_grouped.search_count,
+                sh_grouped.last_searched_at
+            FROM (
+                SELECT 
+                    query,
+                    COUNT(*) as search_count,
+                    MAX(timestamp) as last_searched_at
+                FROM search_history
+                GROUP BY query
+                HAVING COUNT(*) >= ?
+            ) sh_grouped
+            LEFT JOIN query_approvals qa ON sh_grouped.query = qa.query
         """
         params = [min_count]
         
         if status:
-            query += " AND status = ?"
+            query += " WHERE COALESCE(qa.status, 'pending') = ?"
             params.append(status)
         
-        query += " ORDER BY search_count DESC, last_searched_at DESC LIMIT ?"
+        query += " ORDER BY sh_grouped.search_count DESC, sh_grouped.last_searched_at DESC LIMIT ?"
         params.append(limit)
         
         cursor.execute(query, params)
@@ -953,18 +969,26 @@ def delete_query(query: str) -> None:
 
 
 def get_query_stats() -> Dict[str, Any]:
-    """Get statistics about queries."""
+    """Get statistics about queries from combined search_history and query_approvals."""
     with get_db_connection() as conn:
         cursor = conn.cursor()
         
+        # Get stats from combined data (search_history grouped + query_approvals)
         cursor.execute("""
             SELECT 
-                COUNT(*) as total,
-                COALESCE(SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END), 0) as approved,
-                COALESCE(SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END), 0) as rejected,
-                COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) as pending,
-                COALESCE(SUM(search_count), 0) as total_searches
-            FROM query_approvals
+                COUNT(DISTINCT sh_grouped.query) as total,
+                COALESCE(SUM(CASE WHEN COALESCE(qa.status, 'pending') = 'approved' THEN 1 ELSE 0 END), 0) as approved,
+                COALESCE(SUM(CASE WHEN COALESCE(qa.status, 'pending') = 'rejected' THEN 1 ELSE 0 END), 0) as rejected,
+                COALESCE(SUM(CASE WHEN COALESCE(qa.status, 'pending') = 'pending' THEN 1 ELSE 0 END), 0) as pending,
+                COALESCE(SUM(sh_grouped.search_count), 0) as total_searches
+            FROM (
+                SELECT 
+                    query,
+                    COUNT(*) as search_count
+                FROM search_history
+                GROUP BY query
+            ) sh_grouped
+            LEFT JOIN query_approvals qa ON sh_grouped.query = qa.query
         """)
         row = cursor.fetchone()
         
@@ -992,6 +1016,39 @@ def update_query_search_count(query: str) -> None:
                 last_searched_at = ?
         """, (query, now, now))
         logger.debug("Updated search count for query: %s", query)
+
+
+def get_top_search_queries(
+    limit: int = 10,
+    min_count: int = 1,
+) -> List[Dict[str, Any]]:
+    """Get top search queries by count from search_history."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                query,
+                COUNT(*) as search_count,
+                MAX(timestamp) as last_searched_at
+            FROM search_history
+            GROUP BY query
+            HAVING COUNT(*) >= ?
+            ORDER BY search_count DESC, last_searched_at DESC
+            LIMIT ?
+        """, (min_count, limit))
+        
+        rows = cursor.fetchall()
+        
+        top_queries = []
+        for row in rows:
+            top_queries.append({
+                "query": row["query"],
+                "search_count": row["search_count"],
+                "last_searched_at": datetime.fromisoformat(row["last_searched_at"]) if row["last_searched_at"] else None,
+            })
+        
+        return top_queries
 
 
 def save_search_vote(

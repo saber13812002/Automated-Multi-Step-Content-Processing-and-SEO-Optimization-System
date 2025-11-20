@@ -47,6 +47,7 @@ from .database import (
     get_search_results,
     get_search_votes,
     get_token_usage_today,
+    get_top_search_queries,
     get_vote_stats,
     get_vote_summary,
     increment_token_usage,
@@ -84,6 +85,8 @@ from .schemas import (
     QueryApprovalsResponse,
     QueryStatsResponse,
     SearchHistoryResponse,
+    TopQueryItem,
+    TopQueriesResponse,
     SearchRequest,
     SearchResponse,
     SearchResult,
@@ -893,6 +896,31 @@ async def get_history_item(search_id: int):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve search history item: {exc}",
+        ) from exc
+
+
+@app.get("/history/top", response_model=TopQueriesResponse)
+async def get_top_queries(
+    limit: int = Query(10, ge=1, le=100, description="Maximum number of top queries to return"),
+    min_count: int = Query(1, ge=1, description="Minimum search count to include"),
+):
+    """Get top search queries by count."""
+    try:
+        top_queries = get_top_search_queries(limit=limit, min_count=min_count)
+        query_items = [
+            TopQueryItem(
+                query=q["query"],
+                search_count=q["search_count"],
+                last_searched_at=q["last_searched_at"],
+            )
+            for q in top_queries
+        ]
+        return TopQueriesResponse(queries=query_items, total=len(query_items))
+    except Exception as exc:
+        logger.exception("Failed to get top queries")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve top queries: {exc}",
         ) from exc
 
 

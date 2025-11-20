@@ -281,7 +281,7 @@ class UvicornCommandResponse(BaseModel):
 
 class QueryApprovalItem(BaseModel):
     """Query approval item."""
-    id: int
+    id: Optional[int] = None
     query: str
     status: str
     approved_at: Optional[datetime] = None
@@ -304,6 +304,19 @@ class QueryStatsResponse(BaseModel):
     rejected: int
     pending: int
     total_searches: int
+
+
+class TopQueryItem(BaseModel):
+    """Top search query item."""
+    query: str
+    search_count: int
+    last_searched_at: Optional[datetime] = None
+
+
+class TopQueriesResponse(BaseModel):
+    """Response for top search queries."""
+    queries: List[TopQueryItem]
+    total: int
 
 
 class CreateUserRequest(BaseModel):
