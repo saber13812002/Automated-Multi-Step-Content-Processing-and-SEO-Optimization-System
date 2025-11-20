@@ -379,6 +379,28 @@ def segment_paragraph(
     return segments
 
 
+def clean_metadata_for_chroma(metadata: dict) -> dict:
+    """Clean metadata to ensure all values are valid ChromaDB types (str, int, float, bool).
+    
+    ChromaDB only accepts str, int, float, bool, or None for metadata values.
+    This function converts None to empty string and ensures all values are valid types.
+    """
+    cleaned = {}
+    for key, value in metadata.items():
+        if value is None:
+            cleaned[key] = ""
+        elif isinstance(value, (str, int, float, bool)):
+            cleaned[key] = value
+        elif isinstance(value, (list, dict)):
+            # Convert lists/dicts to JSON string
+            import json
+            cleaned[key] = json.dumps(value, ensure_ascii=False)
+        else:
+            # Convert any other type to string
+            cleaned[key] = str(value)
+    return cleaned
+
+
 def build_segments(
     record: BookPageRecord,
     *,
@@ -434,13 +456,15 @@ def build_segments(
                 "source_link": record.link,
                 "record_id": record.id,
                 "has_error": bool(record.error),
-                "error": record.error,
+                "error": record.error or "",
             }
+            # Clean metadata to ensure all values are valid ChromaDB types
+            cleaned_metadata = clean_metadata_for_chroma(metadata)
             segments.append(
                 Segment(
                     document_id=doc_id,
                     text=segment_text,
-                    metadata=metadata,
+                    metadata=cleaned_metadata,
                 )
             )
 
@@ -464,9 +488,11 @@ def build_segments(
             "source_link": record.link,
             "record_id": record.id,
             "has_error": bool(record.error),
-            "error": record.error,
+            "error": record.error or "",
         }
-        segments.append(Segment(document_id=fallback_id, text=text, metadata=metadata))
+        # Clean metadata to ensure all values are valid ChromaDB types
+        cleaned_metadata = clean_metadata_for_chroma(metadata)
+        segments.append(Segment(document_id=fallback_id, text=text, metadata=cleaned_metadata))
 
     if include_page_level and text:
         page_doc_id = f"{record.book_id}-{record.page_id}-page-{uuid.uuid4().hex[:8]}"
@@ -476,7 +502,7 @@ def build_segments(
             "section_id": record.section_id,
             "section_title": record.section_title,
             "page_id": record.page_id,
-            "paragraph_index": None,
+            "paragraph_index": -1,  # Use -1 instead of None for page-level documents
             "segment_index": -1,
             "segment_start": 0,
             "segment_end": len(text),
@@ -486,9 +512,11 @@ def build_segments(
             "source_link": record.link,
             "record_id": record.id,
             "has_error": bool(record.error),
-            "error": record.error,
+            "error": record.error or "",
         }
-        segments.append(Segment(document_id=page_doc_id, text=text, metadata=page_metadata))
+        # Clean metadata to ensure all values are valid ChromaDB types
+        cleaned_page_metadata = clean_metadata_for_chroma(page_metadata)
+        segments.append(Segment(document_id=page_doc_id, text=text, metadata=cleaned_page_metadata))
 
     return segments
 
