@@ -512,21 +512,11 @@ async def search_documents(
     else:
         n_results = payload.top_k
     
-    # Try query_texts first (if collection has embedding function)
-    # This is the same approach as verify_chroma_export.py
-    # Use functools.partial to pass keyword arguments to run_sync
-    try:
-        query_func = partial(
-            collection.query,
-            query_texts=[payload.query],
-            n_results=n_results,
-            include=["documents", "metadatas", "distances"],
-        )
-        results = await anyio.to_thread.run_sync(query_func)
-        logger.debug("Used query_texts (collection has embedding function)")
-    except (ValueError, TypeError, AttributeError) as text_query_exc:
-        # If query_texts fails, generate embeddings and use query_embeddings
-        logger.debug("query_texts failed, generating embeddings and using query_embeddings: %s", str(text_query_exc))
+    # If model_id is provided, we MUST use query_embeddings to ensure we use the correct model
+    # Otherwise, collection.query with query_texts might use a different embedding function
+    if payload.model_id:
+        # Generate embeddings with the model-specific embedder
+        logger.debug("Model ID provided, generating embeddings with model-specific embedder")
         try:
             embeddings = await anyio.to_thread.run_sync(embedder.embed, [payload.query])
             if not embeddings or len(embeddings) == 0:
@@ -539,21 +529,57 @@ async def search_documents(
                 include=["documents", "metadatas", "distances"],
             )
             results = await anyio.to_thread.run_sync(query_func_embeddings)
-            logger.debug("Used query_embeddings")
-        except Exception as embed_exc:  # pragma: no cover - network errors
-            error_msg = f"Failed to query ChromaDB: {str(embed_exc)}"
-            logger.exception("ChromaDB query failed after trying both methods.", extra={"error": str(embed_exc), "query": payload.query})
+            logger.debug("Used query_embeddings with model-specific embedder")
+        except Exception as embed_exc:
+            error_msg = f"Failed to query ChromaDB with model-specific embedder: {str(embed_exc)}"
+            logger.exception("ChromaDB query failed with model-specific embedder.", extra={"error": str(embed_exc), "query": payload.query, "model_id": payload.model_id})
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=error_msg,
             ) from embed_exc
-    except Exception as exc:  # pragma: no cover - network errors
-        error_msg = f"ChromaDB query failed: {str(exc)}"
-        logger.exception("ChromaDB query failed.", extra={"error": str(exc), "query": payload.query})
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=error_msg,
-        ) from exc
+    else:
+        # No model_id: Try query_texts first (if collection has embedding function)
+        # This is the same approach as verify_chroma_export.py
+        # Use functools.partial to pass keyword arguments to run_sync
+        try:
+            query_func = partial(
+                collection.query,
+                query_texts=[payload.query],
+                n_results=n_results,
+                include=["documents", "metadatas", "distances"],
+            )
+            results = await anyio.to_thread.run_sync(query_func)
+            logger.debug("Used query_texts (collection has embedding function)")
+        except (ValueError, TypeError, AttributeError) as text_query_exc:
+            # If query_texts fails, generate embeddings and use query_embeddings
+            logger.debug("query_texts failed, generating embeddings and using query_embeddings: %s", str(text_query_exc))
+            try:
+                embeddings = await anyio.to_thread.run_sync(embedder.embed, [payload.query])
+                if not embeddings or len(embeddings) == 0:
+                    raise ValueError("Failed to generate embeddings for query")
+                
+                query_func_embeddings = partial(
+                    collection.query,
+                    query_embeddings=embeddings,
+                    n_results=n_results,
+                    include=["documents", "metadatas", "distances"],
+                )
+                results = await anyio.to_thread.run_sync(query_func_embeddings)
+                logger.debug("Used query_embeddings")
+            except Exception as embed_exc:  # pragma: no cover - network errors
+                error_msg = f"Failed to query ChromaDB: {str(embed_exc)}"
+                logger.exception("ChromaDB query failed after trying both methods.", extra={"error": str(embed_exc), "query": payload.query})
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=error_msg,
+                ) from embed_exc
+        except Exception as exc:  # pragma: no cover - network errors
+            error_msg = f"ChromaDB query failed: {str(exc)}"
+            logger.exception("ChromaDB query failed.", extra={"error": str(exc), "query": payload.query})
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=error_msg,
+            ) from exc
 
     took_ms = (time.perf_counter() - start) * 1000.0
     ids = results.get("ids", [[]])[0]
