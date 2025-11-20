@@ -81,7 +81,7 @@ python export-sql-backup-to-chromadb.py \
 ### مثال 1: ParsBERT (فارسی) ⭐
 
 ```bash
-python export-sql-backup-to-chromadb.py \
+python3 export-sql-backup-to-chromadb.py \
   --sql-path book_pages.sql \
   --collection book_pages_parsbert \
   --embedding-provider huggingface \
@@ -95,7 +95,7 @@ python export-sql-backup-to-chromadb.py \
 ### مثال 2: AraBERT v2 (عربی) ⭐
 
 ```bash
-python export-sql-backup-to-chromadb.py \
+python3 export-sql-backup-to-chromadb.py \
   --sql-path book_pages.sql \
   --collection book_pages_arabert \
   --embedding-provider huggingface \
@@ -109,7 +109,7 @@ python export-sql-backup-to-chromadb.py \
 ### مثال 3: FaBERT (فارسی - وبلاگ/شبکه‌های اجتماعی)
 
 ```bash
-python export-sql-backup-to-chromadb.py \
+python3 export-sql-backup-to-chromadb.py \
   --sql-path book_pages.sql \
   --collection book_pages_fabert \
   --embedding-provider huggingface \
