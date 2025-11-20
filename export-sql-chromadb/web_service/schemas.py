@@ -188,6 +188,16 @@ class ExportJobsResponse(BaseModel):
     jobs: List[ExportJobItem]
 
 
+class DeleteJobResponse(BaseModel):
+    success: bool
+    message: str
+
+
+class ChromaDeleteResponse(BaseModel):
+    success: bool
+    message: str
+
+
 class EmbeddingModelItem(BaseModel):
     """Embedding model info for admin and user selection."""
 

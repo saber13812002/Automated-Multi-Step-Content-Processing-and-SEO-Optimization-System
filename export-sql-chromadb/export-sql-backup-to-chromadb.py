@@ -71,6 +71,14 @@ class Segment:
     metadata: dict
 
 
+@dataclass
+class ParagraphPayload:
+    text: str
+    line_count: int
+    source_indices: List[int]
+    is_title: bool = False
+
+
 def decode_sql_string(value: Optional[str]) -> str:
     """Decode SQL string with proper UTF-8 handling for Persian text.
     
@@ -265,6 +273,91 @@ def normalize_paragraphs(text: str) -> List[str]:
     return [p for p in cleaned if p]
 
 
+def looks_like_title(paragraph: str) -> bool:
+    if not paragraph:
+        return False
+    stripped = paragraph.strip()
+    if not stripped:
+        return False
+    lowered = stripped.lower()
+    if any(tag in lowered for tag in ("<h1", "<h2", "<h3", "<h4", "<h5", "<h6")):
+        return True
+    if stripped.endswith((":", "؟", "!", "؛")):
+        return True
+    title_markers = ("عنوان", "فصل", "بخش", "درس", "chapter", "section")
+    if any(marker in stripped for marker in title_markers):
+        return True
+    return len(stripped) <= 80 and stripped.isupper()
+
+
+def extract_paragraph_payloads(text: str) -> List[ParagraphPayload]:
+    if not text:
+        return []
+    raw_paragraphs = re.split(r"\n\s*\n+", text)
+    payloads: List[ParagraphPayload] = []
+    for idx, raw in enumerate(raw_paragraphs):
+        cleaned = re.sub(r"\s+", " ", raw).strip()
+        if not cleaned:
+            continue
+        non_empty_lines = [ln for ln in raw.split("\n") if ln.strip()]
+        line_count = len(non_empty_lines) if non_empty_lines else 1
+        payloads.append(
+            ParagraphPayload(
+                text=cleaned,
+                line_count=line_count,
+                source_indices=[idx],
+                is_title=looks_like_title(raw),
+            )
+        )
+    return payloads
+
+
+def _merge_payloads(payloads: List[ParagraphPayload]) -> ParagraphPayload:
+    text = "\n".join(p.text for p in payloads).strip()
+    line_count = sum(p.line_count for p in payloads)
+    indices: List[int] = []
+    is_title = False
+    for payload in payloads:
+        indices.extend(payload.source_indices)
+        is_title = is_title or payload.is_title
+    return ParagraphPayload(
+        text=text,
+        line_count=line_count if line_count > 0 else len(payloads),
+        source_indices=indices or [0],
+        is_title=is_title,
+    )
+
+
+def prepare_paragraphs(text: str, min_lines: int) -> List[ParagraphPayload]:
+    base_payloads = extract_paragraph_payloads(text)
+    if min_lines <= 1:
+        return base_payloads
+
+    merged: List[ParagraphPayload] = []
+    buffer: List[ParagraphPayload] = []
+    buffered_lines = 0
+
+    def flush_buffer():
+        nonlocal buffer, buffered_lines
+        if buffer:
+            merged.append(_merge_payloads(buffer))
+            buffer = []
+            buffered_lines = 0
+
+    for payload in base_payloads:
+        if payload.is_title:
+            flush_buffer()
+            merged.append(payload)
+            continue
+        buffer.append(payload)
+        buffered_lines += payload.line_count
+        if buffered_lines >= min_lines:
+            flush_buffer()
+
+    flush_buffer()
+    return merged
+
+
 def segment_paragraph(
     paragraph: str,
     *,
@@ -291,14 +384,33 @@ def build_segments(
     *,
     max_length: int,
     context_length: int,
+    min_paragraph_lines: int = 1,
+    title_weight: float = 1.0,
+    include_page_level: bool = False,
 ) -> List[Segment]:
+    """
+    Build Segment objects from a `book_pages` row.
+
+    Current behaviour (2025-11) is optimised for Persian/Arabic sources:
+      * `html_to_text` keeps intentional line breaks so we can derive
+        paragraph lengths based on literal `\\n` counts later in the pipeline.
+      * `normalize_paragraphs` collapses multiple blank lines but preserves
+        inline spacing, which is important for short one-line duaa / poem
+        fragments that appear frequently in the corpus.
+      * Paragraphs are split strictly by `max_length` (characters) with
+        symmetric `context_length` overlap; no sentence-boundary adjustment
+        exists yet. The upcoming chunking improvements will hook in here.
+
+    Any change to this logic should be reflected in `dataset_stats.py`
+    so telemetry stays in sync with the exporter.
+    """
     text = html_to_text(record.page_text_html)
-    paragraphs = normalize_paragraphs(text)
+    paragraphs = prepare_paragraphs(text, min_paragraph_lines)
     segments: List[Segment] = []
 
-    for para_index, paragraph in enumerate(paragraphs):
+    for para_index, payload in enumerate(paragraphs):
         chunked = segment_paragraph(
-            paragraph,
+            payload.text,
             max_length=max_length,
             context_length=context_length,
         )
@@ -315,6 +427,10 @@ def build_segments(
                 "segment_start": start,
                 "segment_end": end,
                 "segment_length": len(segment_text),
+                "paragraph_line_count": payload.line_count,
+                "paragraph_is_title": payload.is_title,
+                "paragraph_sources": payload.source_indices,
+                "importance": title_weight if payload.is_title else 1.0,
                 "source_link": record.link,
                 "record_id": record.id,
                 "has_error": bool(record.error),
@@ -341,12 +457,38 @@ def build_segments(
             "segment_start": 0,
             "segment_end": len(text),
             "segment_length": len(text),
+            "paragraph_line_count": text.count("\n") + 1,
+            "paragraph_is_title": False,
+            "paragraph_sources": [0],
+            "importance": 1.0,
             "source_link": record.link,
             "record_id": record.id,
             "has_error": bool(record.error),
             "error": record.error,
         }
         segments.append(Segment(document_id=fallback_id, text=text, metadata=metadata))
+
+    if include_page_level and text:
+        page_doc_id = f"{record.book_id}-{record.page_id}-page-{uuid.uuid4().hex[:8]}"
+        page_metadata = {
+            "book_id": record.book_id,
+            "book_title": record.book_title,
+            "section_id": record.section_id,
+            "section_title": record.section_title,
+            "page_id": record.page_id,
+            "paragraph_index": None,
+            "segment_index": -1,
+            "segment_start": 0,
+            "segment_end": len(text),
+            "segment_length": len(text),
+            "page_level": True,
+            "importance": 1.0,
+            "source_link": record.link,
+            "record_id": record.id,
+            "has_error": bool(record.error),
+            "error": record.error,
+        }
+        segments.append(Segment(document_id=page_doc_id, text=text, metadata=page_metadata))
 
     return segments
 
@@ -536,6 +678,8 @@ def export_to_chroma(args: argparse.Namespace, job_id: Optional[int] = None) -> 
             "source": "book_pages_sql_export",
             "max_length": args.max_length,
             "context_length": args.context,
+            "min_paragraph_lines": args.min_paragraph_lines,
+            "title_weight": args.title_weight,
         },
         reset=args.reset,
     )
@@ -564,6 +708,9 @@ def export_to_chroma(args: argparse.Namespace, job_id: Optional[int] = None) -> 
             record,
             max_length=args.max_length,
             context_length=args.context,
+            min_paragraph_lines=args.min_paragraph_lines,
+            title_weight=args.title_weight,
+            include_page_level=not args.disable_page_level_docs,
         )
     )
 
@@ -674,6 +821,23 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         type=int,
         default=int(os.getenv("CHUNK_CONTEXT_LENGTH", "100")),
         help="Number of overlap characters around each segment.",
+    )
+    parser.add_argument(
+        "--min-paragraph-lines",
+        type=int,
+        default=int(os.getenv("MIN_PARAGRAPH_LINES", "3")),
+        help="Minimum number of lines before we stop merging short paragraphs.",
+    )
+    parser.add_argument(
+        "--title-weight",
+        type=float,
+        default=float(os.getenv("TITLE_WEIGHT", "1.5")),
+        help="Weight multiplier for title segments (stored in metadata).",
+    )
+    parser.add_argument(
+        "--disable-page-level-docs",
+        action="store_true",
+        help="Disable adding a full-page document per record to Chroma.",
     )
     parser.add_argument(
         "--host",

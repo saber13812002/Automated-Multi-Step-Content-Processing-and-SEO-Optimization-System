@@ -552,6 +552,17 @@ def get_export_job(job_id: int) -> Optional[Dict[str, Any]]:
         }
 
 
+def delete_export_job(job_id: int) -> bool:
+    """Delete an export job. Returns True when a row was removed."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM export_jobs WHERE id = ?", (job_id,))
+        deleted = cursor.rowcount
+        if deleted:
+            logger.info("Deleted export job #%d", job_id)
+        return bool(deleted)
+
+
 def get_latest_completed_model_jobs(limit: int = 10) -> List[Dict[str, Any]]:
     """Return latest completed jobs per unique (provider, model, collection)."""
     with get_db_connection() as conn:
@@ -1429,6 +1440,7 @@ __all__ = [
     "get_db_path",
     "create_export_job",
     "update_export_job",
+    "delete_export_job",
     "get_export_jobs",
     "get_export_job",
     "get_query_approvals",

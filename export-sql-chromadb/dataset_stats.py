@@ -14,7 +14,7 @@ import json
 import statistics
 import sys
 from collections import Counter
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
@@ -27,21 +27,29 @@ EXPORTER_FILENAME = "export-sql-backup-to-chromadb.py"
 
 @dataclass
 class ParagraphStats:
-    total: int = 0
-    line_counts: List[int] = None  # type: ignore
-    char_counts: List[int] = None  # type: ignore
+    raw_total: int = 0
+    raw_line_counts: List[int] = None  # type: ignore
+    raw_char_counts: List[int] = None  # type: ignore
+    merged_total: int = 0
+    merged_line_counts: List[int] = None  # type: ignore
+    merged_char_counts: List[int] = None  # type: ignore
 
     def __post_init__(self) -> None:
-        if self.line_counts is None:
-            self.line_counts = []
-        if self.char_counts is None:
-            self.char_counts = []
+        if self.raw_line_counts is None:
+            self.raw_line_counts = []
+        if self.raw_char_counts is None:
+            self.raw_char_counts = []
+        if self.merged_line_counts is None:
+            self.merged_line_counts = []
+        if self.merged_char_counts is None:
+            self.merged_char_counts = []
 
 
 @dataclass
 class SegmentStats:
     total: int = 0
     char_counts: List[int] = None  # type: ignore
+    page_level_segments: int = 0
 
     def __post_init__(self) -> None:
         if self.char_counts is None:
@@ -58,6 +66,7 @@ class DatasetStats:
     segment_stats: SegmentStats
     short_paragraphs: int
     title_like_paragraphs: int
+    merged_from_short: int
     segments_per_second: float
     estimated_seconds: Optional[float]
 
@@ -97,19 +106,6 @@ def iter_paragraphs_with_lines(text: str) -> Iterable[Tuple[str, int]]:
         yield cleaned, line_count
 
 
-def looks_like_title(paragraph: str) -> bool:
-    stripped = paragraph.strip()
-    if not stripped:
-        return False
-    if len(stripped) <= 80:
-        return True
-    lowered = stripped.lower()
-    for marker in ("<h1", "<h2", "<h3", "<h4", "<h5", "<h6", "عنوان", "title", "درس "):
-        if marker in lowered:
-            return True
-    return False
-
-
 def compute_basic_stats(data: List[int]) -> dict:
     if not data:
         return {
@@ -139,6 +135,9 @@ def analyze_sql_dump(
     *,
     max_length: int,
     context_length: int,
+    min_paragraph_lines: int,
+    title_weight: float,
+    include_page_level_docs: bool,
     segments_per_second: float,
     record_limit: Optional[int] = None,
 ) -> DatasetStats:
@@ -149,6 +148,7 @@ def analyze_sql_dump(
     unique_pages = set()
     short_paragraphs = 0
     title_like_paragraphs = 0
+    merged_from_short = 0
 
     for record in EXPORTER.iter_book_pages(sql_path):
         total_records += 1
@@ -160,21 +160,33 @@ def analyze_sql_dump(
 
         text = EXPORTER.html_to_text(record.page_text_html)
         for cleaned, line_count in iter_paragraphs_with_lines(text):
-            paragraph_stats.total += 1
-            paragraph_stats.line_counts.append(line_count)
-            paragraph_stats.char_counts.append(len(cleaned))
+            paragraph_stats.raw_total += 1
+            paragraph_stats.raw_line_counts.append(line_count)
+            paragraph_stats.raw_char_counts.append(len(cleaned))
             if line_count < 3:
                 short_paragraphs += 1
-            if looks_like_title(cleaned):
+            if EXPORTER.looks_like_title(cleaned):
                 title_like_paragraphs += 1
+
+        merged_payloads = EXPORTER.prepare_paragraphs(text, min_paragraph_lines)
+        paragraph_stats.merged_total += len(merged_payloads)
+        paragraph_stats.merged_line_counts.extend(p.line_count for p in merged_payloads)
+        paragraph_stats.merged_char_counts.extend(len(p.text) for p in merged_payloads)
+        merged_from_short += sum(max(0, len(p.source_indices) - 1) for p in merged_payloads)
 
         segments = EXPORTER.build_segments(
             record,
             max_length=max_length,
             context_length=context_length,
+            min_paragraph_lines=min_paragraph_lines,
+            title_weight=title_weight,
+            include_page_level=include_page_level_docs,
         )
         segment_stats.total += len(segments)
         segment_stats.char_counts.extend(len(segment.text) for segment in segments)
+        segment_stats.page_level_segments += sum(
+            1 for segment in segments if segment.metadata.get("page_level")
+        )
 
     estimated_seconds = (
         segment_stats.total / segments_per_second if segments_per_second > 0 else None
@@ -189,16 +201,19 @@ def analyze_sql_dump(
         segment_stats=segment_stats,
         short_paragraphs=short_paragraphs,
         title_like_paragraphs=title_like_paragraphs,
+        merged_from_short=merged_from_short,
         segments_per_second=segments_per_second,
         estimated_seconds=estimated_seconds,
     )
 
 
 def render_report(stats: DatasetStats) -> dict:
-    paragraph_summary = compute_basic_stats(stats.paragraph_stats.line_counts)
-    paragraph_chars = compute_basic_stats(stats.paragraph_stats.char_counts)
+    raw_line_stats = compute_basic_stats(stats.paragraph_stats.raw_line_counts)
+    raw_char_stats = compute_basic_stats(stats.paragraph_stats.raw_char_counts)
+    merged_line_stats = compute_basic_stats(stats.paragraph_stats.merged_line_counts)
+    merged_char_stats = compute_basic_stats(stats.paragraph_stats.merged_char_counts)
     segment_summary = compute_basic_stats(stats.segment_stats.char_counts)
-    line_histogram = summarize_counts(stats.paragraph_stats.line_counts)
+    line_histogram = summarize_counts(stats.paragraph_stats.raw_line_counts)
 
     report = {
         "sql_path": stats.sql_path,
@@ -206,16 +221,25 @@ def render_report(stats: DatasetStats) -> dict:
         "books": stats.total_books,
         "pages": stats.total_pages,
         "paragraphs": {
-            "count": stats.paragraph_stats.total,
-            "lines": paragraph_summary,
-            "line_histogram": line_histogram,
-            "chars": paragraph_chars,
+            "raw": {
+                "count": stats.paragraph_stats.raw_total,
+                "lines": raw_line_stats,
+                "line_histogram": line_histogram,
+                "chars": raw_char_stats,
+            },
+            "merged": {
+                "count": stats.paragraph_stats.merged_total,
+                "lines": merged_line_stats,
+                "chars": merged_char_stats,
+            },
             "shorter_than_three_lines": stats.short_paragraphs,
             "title_like": stats.title_like_paragraphs,
+            "merged_from_short": stats.merged_from_short,
         },
         "segments": {
             "count": stats.segment_stats.total,
             "chars": segment_summary,
+            "page_level": stats.segment_stats.page_level_segments,
         },
         "segments_per_second": stats.segments_per_second,
         "estimated_seconds": stats.estimated_seconds,
@@ -231,16 +255,21 @@ def print_human_report(report: dict) -> None:
         f"   • رکوردها: {report['records']:,} | کتاب‌ها: {report['books']:,} | صفحات: {report['pages']:,}"
     )
     print(
-        f"   • پاراگراف‌ها: {paras['count']:,} (میانگین خطوط: {paras['lines']['avg']:.2f}, "
-        f"کمینه: {paras['lines']['min']}, بیشینه: {paras['lines']['max']})"
+        f"   • پاراگراف‌های خام: {paras['raw']['count']:,} (میانگین خطوط: {paras['raw']['lines']['avg']:.2f}, "
+        f"کمینه: {paras['raw']['lines']['min']}, بیشینه: {paras['raw']['lines']['max']})"
     )
     print(
-        f"   • پاراگراف کوتاه (<3 خط): {paras['shorter_than_three_lines']:,} | تیتر گونه: {paras['title_like']:,}"
+        f"   • پاراگراف‌های بعد از ادغام: {paras['merged']['count']:,} (میانگین خطوط: {paras['merged']['lines']['avg']:.2f})"
+    )
+    print(
+        f"   • پاراگراف کوتاه (<3 خط): {paras['shorter_than_three_lines']:,} | تیتر گونه: {paras['title_like']:,} | ادغام از کوتاه: {paras['merged_from_short']:,}"
     )
     print(
         f"   • قطعات: {segs['count']:,} (میانگین حروف: {segs['chars']['avg']:.1f}, "
         f"کمینه: {segs['chars']['min']}, بیشینه: {segs['chars']['max']})"
     )
+    if segs["page_level"]:
+        print(f"   • اسناد صفحه کامل: {segs['page_level']:,}")
     if report["estimated_seconds"] is not None:
         minutes = report["estimated_seconds"] / 60.0
         print(
@@ -248,7 +277,7 @@ def print_human_report(report: dict) -> None:
             f"{minutes:.1f} دقیقه"
         )
     print("   • هیستوگرام خطوط (۱ تا ۱۰+):")
-    for bucket, count in report["paragraphs"]["line_histogram"].items():
+    for bucket, count in report["paragraphs"]["raw"]["line_histogram"].items():
         print(f"      - {bucket}: {count:,}")
 
 
@@ -272,6 +301,23 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         type=int,
         default=100,
         help="طول همپوشانی کاراکتر بین سگمنت‌ها.",
+    )
+    parser.add_argument(
+        "--min-paragraph-lines",
+        type=int,
+        default=3,
+        help="حداقل خطوط برای ادغام پاراگراف‌های کوتاه.",
+    )
+    parser.add_argument(
+        "--title-weight",
+        type=float,
+        default=1.5,
+        help="وزن تیترها (برای هماهنگی با exporter).",
+    )
+    parser.add_argument(
+        "--disable-page-level-docs",
+        action="store_true",
+        help="اگر تنظیم شود سند کامل صفحه در آمار لحاظ نمی‌شود.",
     )
     parser.add_argument(
         "--segments-per-second",
@@ -304,6 +350,9 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
         sql_path,
         max_length=args.max_length,
         context_length=args.context,
+        min_paragraph_lines=args.min_paragraph_lines,
+        title_weight=args.title_weight,
+        include_page_level_docs=not args.disable_page_level_docs,
         segments_per_second=args.segments_per_second,
         record_limit=args.limit,
     )

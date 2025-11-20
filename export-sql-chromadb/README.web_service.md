@@ -398,6 +398,11 @@ uvicorn web_service.app:app --host 0.0.0.0 --port 8080 2>&1 | grep -i error
 - برای تغییر تعداد نتایج بازگشتی به صورت پیش‌فرض، مقدار `top_k` را در درخواست POST مشخص کنید.
 - مسیر `/health` شامل خلاصه وضعیت Redis، ضربان ChromaDB و تعداد اسناد کالکشن است.
 - در محیط توسعه، می‌توانید از فلگ `--reload` در uvicorn استفاده کنید تا تغییرات کد به صورت خودکار اعمال شود.
+- ابزارهای مانیتورینگ و پاکسازی:
+  - `python dataset_stats.py --sql-path books_pages_mini.sql --json-out stats.json` برای استخراج آمار رکورد/پاراگراف/سگمنت و تخمین زمان.
+  - `pytest tests/test_paragraph_glue.py -k glue` جهت ارزیابی سناریوی Glue با مدل لوکال (نیازمند HuggingFace + torch).
+  - `python tools/benchmark_embeddings.py --collection book_pages --queries benchmark.json` برای بنچمارک hit-rate کالکشن تستی.
+  - حذف job خراب: `DELETE /admin/jobs/{job_id}` و حذف کالکشن آزمایشی: `DELETE /admin/chroma/collections/{collection_name}` (دسترسی از پنل ادمین).
 
 ---
 

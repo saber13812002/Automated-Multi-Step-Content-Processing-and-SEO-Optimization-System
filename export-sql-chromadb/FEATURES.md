@@ -549,6 +549,12 @@
 - ✅ Job tracking در SQLite
 - ✅ Collection name با timestamp در صورت تکراری
 - ✅ Progress tracking و statistics
+- ✅ سگمنتیشن جدید: ادغام پاراگراف‌های کوتاه، وزن‌دهی تیترها، و افزودن سند کامل هر صفحه
+- ✅ ابزارهای جانبی:
+  - `dataset_stats.py` برای آمارگیری و تخمین نرخ پردازش
+  - `tests/test_paragraph_glue.py` به‌عنوان تست Glue روی مدل لوکال
+  - `tools/benchmark_embeddings.py` برای بنچمارک hit-rate کالکشن‌های تستی
+  - Endpointهای جدید برای حذف jobهای خراب و پاکسازی کالکشن Chroma از طریق Admin panel
 
 #### Web Service
 - ✅ FastAPI application با تمام endpoints

@@ -11,6 +11,7 @@ from functools import partial
 from typing import Any, Dict, List, Optional
 
 import anyio
+from chromadb.errors import NotFoundError as ChromaNotFoundError
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -31,6 +32,7 @@ from .database import (
     approve_query,
     create_api_token,
     create_api_user,
+    delete_export_job,
     delete_query,
     get_active_embedding_models,
     get_all_tokens,
@@ -65,9 +67,11 @@ from .logging_setup import configure_logging
 from .schemas import (
     ChromaCollectionInfo,
     ChromaCollectionsResponse,
+    ChromaDeleteResponse,
     ChromaTestResponse,
     CreateTokenRequest,
     CreateUserRequest,
+    DeleteJobResponse,
     EmbeddingModelItem,
     EmbeddingModelsResponse,
     ExportCommandRequest,
@@ -988,6 +992,27 @@ async def get_admin_job(job_id: int):
         ) from exc
 
 
+@app.delete("/admin/jobs/{job_id}", response_model=DeleteJobResponse)
+async def delete_admin_job(job_id: int):
+    """Delete a failed/stale export job."""
+    try:
+        removed = delete_export_job(job_id)
+        if not removed:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Export job {job_id} not found",
+            )
+        return DeleteJobResponse(success=True, message=f"Job {job_id} deleted.")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to delete export job")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete export job: {exc}",
+        ) from exc
+
+
 @app.get("/admin/chroma/collections", response_model=ChromaCollectionsResponse)
 async def get_chroma_collections(
     app_state: Dict[str, Any] = Depends(get_app_state),
@@ -1052,6 +1077,32 @@ async def test_chroma_connection(
             heartbeat=None,
             collections=None,
         )
+
+
+@app.delete("/admin/chroma/collections/{collection_name}", response_model=ChromaDeleteResponse)
+async def delete_chroma_collection(
+    collection_name: str,
+    app_state: Dict[str, Any] = Depends(get_app_state),
+):
+    """Delete a Chroma collection (use with caution)."""
+    try:
+        chroma_client = app_state["chroma_client"]
+        await anyio.to_thread.run_sync(lambda: chroma_client.delete_collection(collection_name))
+        return ChromaDeleteResponse(
+            success=True,
+            message=f"Collection '{collection_name}' deleted.",
+        )
+    except ChromaNotFoundError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Collection '{collection_name}' not found",
+        )
+    except Exception as exc:
+        logger.exception("Failed to delete Chroma collection %s", collection_name)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete collection: {exc}",
+        ) from exc
 
 
 @app.post("/admin/chroma/generate-export-command", response_model=ExportCommandResponse)
