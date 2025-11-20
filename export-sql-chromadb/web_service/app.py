@@ -878,27 +878,6 @@ async def get_history(
         ) from exc
 
 
-@app.get("/history/{search_id}", response_model=Dict[str, Any])
-async def get_history_item(search_id: int):
-    """Get full details of a specific search including results."""
-    try:
-        search_data = get_search_results(search_id)
-        if not search_data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Search with ID {search_id} not found",
-            )
-        return search_data
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Failed to get search history item")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve search history item: {exc}",
-        ) from exc
-
-
 @app.get("/history/top", response_model=TopQueriesResponse)
 async def get_top_queries(
     limit: int = Query(10, ge=1, le=100, description="Maximum number of top queries to return"),
@@ -921,6 +900,27 @@ async def get_top_queries(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve top queries: {exc}",
+        ) from exc
+
+
+@app.get("/history/{search_id}", response_model=Dict[str, Any])
+async def get_history_item(search_id: int):
+    """Get full details of a specific search including results."""
+    try:
+        search_data = get_search_results(search_id)
+        if not search_data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Search with ID {search_id} not found",
+            )
+        return search_data
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to get search history item")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve search history item: {exc}",
         ) from exc
 
 
