@@ -21,6 +21,7 @@
 - [systemd/INSTALL_UVICORN_SERVICE.md](systemd/INSTALL_UVICORN_SERVICE.md) - راهنمای نصب Systemd Service
 - [README.web_service.md](README.web_service.md) - راهنمای کامل Web Service
 - [HUGGINGFACE_MODELS.md](HUGGINGFACE_MODELS.md) - راهنمای استفاده از مدل‌های HuggingFace
+- [README.list_openai_embeddings.md](README.list_openai_embeddings.md) - راهنمای اسکریپت لیست کردن امبدینگ‌های OpenAI
 - [IMPROVEMENTS.md](IMPROVEMENTS.md) - پیشنهادات بهبود و بهینه‌سازی سیستم
 
 ## پیش‌نیازها
@@ -115,6 +116,8 @@ pip install transformers torch numpy
 
 ## تست و ارزیابی نتایج
 
+### بررسی نتایج جستجو
+
 پس از پایان بارگذاری می‌توانید از اسکریپت زیر برای ارسال کوئری و بررسی نتایج استفاده کنید:
 
 ```bash
@@ -127,6 +130,16 @@ python verify_chroma_export.py \
 ```
 
 خروجی شامل شناسه، فاصله، لینک منبع و پیش‌نمایش هر قطعه است تا بتوانید کیفیت داده‌های ذخیره‌شده را ارزیابی کنید.
+
+### لیست کردن امبدینگ‌های OpenAI
+
+برای مشاهده تمام کالکشن‌های امبدینگ OpenAI و اطلاعات آن‌ها:
+
+```bash
+python list_openai_embeddings.py --include-db-info
+```
+
+این اسکریپت اطلاعات کامل از کالکشن‌ها، مدل‌ها، وضعیت فعال/غیرفعال و آمار را نمایش می‌دهد. برای جزئیات بیشتر به [README.list_openai_embeddings.md](README.list_openai_embeddings.md) مراجعه کنید.
 
 ## نکات تکمیلی
 
