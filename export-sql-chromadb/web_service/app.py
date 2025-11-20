@@ -380,13 +380,73 @@ async def search_documents(
             "top_k": payload.top_k,
             "page": payload.page,
             "page_size": payload.page_size,
+            "model_id": payload.model_id,
         },
     )
 
     settings: Settings = app_state["settings"]
-    collection = app_state["collection"]
-    embedder = app_state["embedder"]
+    chroma_client = app_state["chroma_client"]
     redis_client = app_state.get("redis_client")
+    
+    # If model_id is provided, use that model's collection and embedder
+    if payload.model_id:
+        from web_service.database import get_embedding_model
+        from web_service.clients import create_embedder_for_model
+        
+        model_info = get_embedding_model(payload.model_id)
+        if not model_info:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"مدل با شناسه {payload.model_id} یافت نشد.",
+            )
+        
+        if not model_info.get("is_active", False):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"مدل با شناسه {payload.model_id} غیرفعال است.",
+            )
+        
+        # Get collection for this specific model
+        collection_name = model_info["collection"]
+        try:
+            collection = chroma_client.get_collection(collection_name)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"عدم دسترسی به کالکشن {collection_name}: {exc}",
+            ) from exc
+        
+        # Create embedder for this specific model
+        embedder = create_embedder_for_model(
+            provider=model_info["embedding_provider"],
+            model=model_info["embedding_model"],
+            api_key=settings.openai_api_key,
+            device="",
+        )
+        
+        # Use model-specific provider and model for cache key
+        actual_provider = model_info["embedding_provider"]
+        actual_model = model_info["embedding_model"]
+        actual_collection = collection_name
+        
+        logger.info(
+            "Using model-specific collection and embedder",
+            extra={
+                "model_id": payload.model_id,
+                "collection": collection_name,
+                "provider": actual_provider,
+                "model": actual_model,
+            },
+        )
+    else:
+        # Use default collection and embedder
+        collection = app_state["collection"]
+        embedder = app_state["embedder"]
+        actual_provider = settings.embedding_provider
+        actual_model = settings.embedding_model
+        actual_collection = settings.chroma_collection
+        
+        logger.debug("Using default collection and embedder")
     
     # Check Redis cache if enabled
     use_cache = payload.use_cache if hasattr(payload, 'use_cache') else settings.default_use_cache
@@ -394,9 +454,9 @@ async def search_documents(
     if use_cache and redis_client:
         cache_key = _build_single_search_cache_key(
             query=payload.query,
-            provider=settings.embedding_provider,
-            model=settings.embedding_model,
-            collection=settings.chroma_collection,
+            provider=actual_provider,
+            model=actual_model,
+            collection=actual_collection,
             top_k=payload.top_k,
             page=payload.page,
             page_size=payload.page_size,
@@ -421,12 +481,12 @@ async def search_documents(
             export_provider = collection_metadata.get("embedding_provider")
             export_model = collection_metadata.get("embedding_model")
             if export_provider and export_model:
-                if export_provider != settings.embedding_provider or export_model != settings.embedding_model:
+                if export_provider != actual_provider or export_model != actual_model:
                     warning_msg = (
                         f"⚠️  Warning: Query model mismatch! "
                         f"Collection was exported with {export_provider}/{export_model}, "
-                        f"but query is using {settings.embedding_provider}/{settings.embedding_model}. "
-                        f"Results may be inaccurate. Update your .env to match the export model."
+                        f"but query is using {actual_provider}/{actual_model}. "
+                        f"Results may be inaccurate."
                     )
                     logger.warning(warning_msg)
                     # Don't fail the request, but log the warning
@@ -660,9 +720,9 @@ async def search_documents(
         query=payload.query,
         top_k=payload.top_k,
         returned=len(response_items),
-        provider=settings.embedding_provider,
-        model=settings.embedding_model,
-        collection=settings.chroma_collection,
+        provider=actual_provider,
+        model=actual_model,
+        collection=actual_collection,
         results=response_items,
         took_ms=took_ms,
         total_documents=total_documents,
@@ -675,9 +735,9 @@ async def search_documents(
         try:
             cache_key = _build_single_search_cache_key(
                 query=payload.query,
-                provider=settings.embedding_provider,
-                model=settings.embedding_model,
-                collection=settings.chroma_collection,
+                provider=actual_provider,
+                model=actual_model,
+                collection=actual_collection,
                 top_k=payload.top_k,
                 page=payload.page,
                 page_size=payload.page_size,
@@ -723,9 +783,9 @@ async def search_documents(
                 query=payload.query,
                 result_count=len(response_items),
                 took_ms=took_ms,
-                collection=settings.chroma_collection,
-                provider=settings.embedding_provider,
-                model=settings.embedding_model,
+                collection=actual_collection,
+                provider=actual_provider,
+                model=actual_model,
                 results=results_dict,
             )
             logger.debug("Search results saved to database")

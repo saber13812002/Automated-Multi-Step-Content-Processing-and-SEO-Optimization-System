@@ -49,6 +49,11 @@ class SearchRequest(BaseModel):
         description="شامل کردن متن کامل پاراگراف به جای فقط سگمنت",
         example=False,
     )
+    model_id: Optional[int] = Field(
+        None,
+        description="شناسه مدل امبدینگ انتخابی (اگر ارائه شود، از کالکشن و embedder این مدل استفاده می‌شود)",
+        example=None,
+    )
 
 
 class SearchResult(BaseModel):
