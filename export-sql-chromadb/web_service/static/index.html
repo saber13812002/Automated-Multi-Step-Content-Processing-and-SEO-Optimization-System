@@ -229,6 +229,71 @@
             border-right: 4px solid #667eea;
         }
 
+        .document-context {
+            background: #f8f9fa;
+            padding: 10px 12px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            font-size: 0.85rem;
+            color: #555;
+            border-right: 3px solid #667eea;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .document-context strong {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .document-content {
+            line-height: 1.9;
+            color: #2d3748;
+            font-size: 1rem;
+            text-align: justify;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .document-source-link {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .source-link-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background 0.2s, transform 0.1s;
+        }
+
+        .source-link-btn:hover {
+            background: #5568d3;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .page-level-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: #10b981;
+            color: white;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+
         .result-metadata {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -1093,6 +1158,102 @@
                 html += paginationHtml;
             }
 
+            const renderDocumentWithContext = (document, metadata) => {
+                if (!document) return '';
+                
+                const meta = metadata || {};
+                const bookTitle = meta.book_title || '';
+                const sectionTitle = meta.section_title || '';
+                const pageId = meta.page_id !== undefined ? meta.page_id : '';
+                const paragraphIndex = meta.paragraph_index !== undefined ? meta.paragraph_index : '';
+                const segmentIndex = meta.segment_index !== undefined ? meta.segment_index : '';
+                const segmentLength = meta.segment_length !== undefined ? meta.segment_length : '';
+                const sourceLink = meta.source_link || '';
+                const pageLevel = meta.page_level === true;
+                
+                // Build context info
+                let contextInfo = [];
+                if (bookTitle) {
+                    contextInfo.push(`<strong>کتاب:</strong> ${escapeHtml(bookTitle)}`);
+                }
+                if (sectionTitle) {
+                    contextInfo.push(`<strong>بخش:</strong> ${escapeHtml(sectionTitle)}`);
+                }
+                if (pageId !== '') {
+                    contextInfo.push(`<strong>صفحه:</strong> ${escapeHtml(String(pageId))}`);
+                }
+                if (!pageLevel && paragraphIndex !== '') {
+                    contextInfo.push(`<strong>پاراگراف:</strong> ${escapeHtml(String(paragraphIndex))}`);
+                }
+                if (!pageLevel && segmentIndex !== '') {
+                    contextInfo.push(`<strong>قطعه:</strong> ${escapeHtml(String(segmentIndex))}`);
+                }
+                if (segmentLength) {
+                    contextInfo.push(`<strong>طول:</strong> ${escapeHtml(String(segmentLength))} کاراکتر`);
+                }
+                
+                // Build source link
+                let sourceLinkHtml = '';
+                if (sourceLink) {
+                    let url = String(sourceLink).trim();
+                    if ((url.startsWith("'") && url.endsWith("'")) || (url.startsWith('"') && url.endsWith('"'))) {
+                        url = url.slice(1, -1);
+                    }
+                    const isAbsolute = /^https?:\/\//i.test(url);
+                    if (isAbsolute) {
+                        let displayText = url;
+                        try {
+                            const urlObj = new URL(url);
+                            const pathMatch = urlObj.pathname.match(/\/node\/(\d+)/);
+                            const hash = urlObj.hash;
+                            if (pathMatch && pathMatch[1]) {
+                                displayText = pathMatch[1] + hash;
+                            } else {
+                                const pathParts = urlObj.pathname.split('/').filter(p => p);
+                                if (pathParts.length > 0) {
+                                    displayText = pathParts[pathParts.length - 1] + hash;
+                                }
+                            }
+                        } catch (e) {
+                            const match = url.match(/(?:node\/)?(\d+)(#p\d+)?$/i);
+                            if (match) {
+                                displayText = match[1] + (match[2] || '');
+                            } else {
+                                const parts = url.split('/');
+                                displayText = parts[parts.length - 1] || url;
+                            }
+                        }
+                        sourceLinkHtml = `
+                            <div class="document-source-link">
+                                <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="source-link-btn">
+                                    🔗 مشاهده منبع: ${escapeHtml(displayText)}
+                                </a>
+                            </div>
+                        `;
+                    }
+                }
+                
+                // Build page level badge
+                const pageLevelBadge = pageLevel ? `
+                    <span class="page-level-badge" title="این یک سند کامل صفحه است">📄 سند کامل صفحه</span>
+                ` : '';
+                
+                return `
+                    <div class="result-document">
+                        ${contextInfo.length > 0 ? `
+                            <div class="document-context">
+                                ${contextInfo.join(' | ')}
+                                ${pageLevelBadge}
+                            </div>
+                        ` : ''}
+                        <div class="document-content">
+                            ${escapeHtml(document)}
+                        </div>
+                        ${sourceLinkHtml}
+                    </div>
+                `;
+            };
+
             const renderMetadata = (metadata) => {
                 if (!metadata || Object.keys(metadata).length === 0) {
                     return '';
@@ -1234,7 +1395,7 @@
                                 ` : ''}
                             </div>
                         </div>
-                        ${result.document ? `<div class="result-document">${escapeHtml(result.document)}</div>` : ''}
+                        ${renderDocumentWithContext(result.document, result.metadata)}
                         ${renderMetadata(result.metadata)}
                         <div class="vote-buttons">
                             <button class="vote-button like" data-result-id="${encodeURIComponent(result.id)}" data-model-id="${resultModelId ?? ''}" onclick="voteOnResult(this, 'like')">👍 مفید بود</button>
