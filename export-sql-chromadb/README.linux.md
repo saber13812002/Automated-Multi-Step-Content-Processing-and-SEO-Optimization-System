@@ -97,7 +97,7 @@ python3 export-sql-backup-to-chromadb.py   --sql-path book_pages.sql   --collect
 
 ### 6. Monitor Token Usage
 - Token consumption scales with the size of each segment and the number of segments exported.
-- With `books_pages_mini.sql`, segment sizes are small (default max length 200 characters plus context), so costs remain low.
+- With `books_pages_mini.sql`, segment sizes are optimized (default max length 500 characters plus context), so costs remain low.
 - If you need tighter control, consider lowering `--max-length` or batching exports, and track usage in the OpenAI dashboard when embeddings are enabled.
 **Check:** در صورت استفاده از OpenAI، داشبورد Usage باید تعداد درخواست‌ها و هزینه‌ی تقریبی را نشان دهد؛ برای بررسی محلی می‌توانید خروجی اسکریپت را از نظر تعداد سگمنت‌ها نیز پایش کنید.
 

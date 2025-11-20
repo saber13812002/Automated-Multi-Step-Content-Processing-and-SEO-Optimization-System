@@ -27,7 +27,7 @@
 برای exportهای بزرگ (مثل 247K+ chunk)، می‌توانید batch size را افزایش دهید تا سرعت export بیشتر شود:
 
 ```bash
-# بجای batch-size پیش‌فرض 48، می‌توانید تا 100-200 افزایش دهید
+# بجای batch-size پیش‌فرض 64، می‌توانید تا 100-200 افزایش دهید
 python3 export-sql-backup-to-chromadb.py \
   --sql-path book_pages.sql \
   --collection book_pages_text-embedding-3-large \
@@ -565,7 +565,7 @@ python3 export-sql-backup-to-chromadb.py \
   --collection book_pages_text-embedding-3-large \
   --embedding-model text-embedding-3-large \
   --batch-size 150 \
-  --max-length 200 \
+  --max-length 500 \
   --context 100
 ```
 

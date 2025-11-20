@@ -265,8 +265,8 @@ curl -X POST http://localhost:8080/search \
   "embedding_provider": "openai",
   "embedding_model": "text-embedding-3-small",
   "reset": false,
-  "batch_size": 48,
-  "max_length": 200,
+  "batch_size": 64,
+  "max_length": 500,
   "context_length": 100
 }
 ```
@@ -439,8 +439,8 @@ curl -X POST http://localhost:8080/search \
   "duration_seconds": 366.0,
   "sql_path": "book_pages.sql",
   "collection": "book_pages",
-  "batch_size": 48,
-  "max_length": 200,
+  "batch_size": 64,
+  "max_length": 500,
   "context_length": 100,
   "host": "localhost",
   "port": 8000,

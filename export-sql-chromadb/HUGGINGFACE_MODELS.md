@@ -20,7 +20,7 @@ python export-sql-backup-to-chromadb.py \
   --collection book_pages_parsbert \
   --embedding-provider huggingface \
   --embedding-model "HooshvareLab/bert-base-parsbert-uncased" \
-  --batch-size 32
+  --batch-size 64
 ```
 
 این مثال از ParsBERT (بهترین مدل برای متون فارسی) استفاده می‌کند. برای جزئیات بیشتر و مثال‌های دیگر، ادامه مطلب را مطالعه کنید.
@@ -83,7 +83,7 @@ python export-sql-backup-to-chromadb.py \
 - **تنظیمات لاگ**: لاگ‌ها به صورت JSON چاپ می‌شوند؛ برای خواندن ساده‌تر می‌توانید از ابزارهایی مثل `jq` استفاده کنید.
 - **تنظیمات محیط**: در صورت نیاز به تنظیم کلید API برای ChromaDB، مقدار `CHROMA_API_KEY` را در `.env` تنظیم کنید.
 - **پیکربندی تعداد نتایج**: برای تغییر تعداد نتایج بازگشتی به صورت پیش‌فرض، مقدار `top_k` را در درخواست POST مشخص کنید.
-- **Batch Size برای CPU**: برای CPU، پیشنهاد می‌شود از `--batch-size 16` یا کمتر استفاده کنید تا از مصرف بیش از حد حافظه جلوگیری شود.
+- **Batch Size برای CPU**: برای CPU، پیشنهاد می‌شود از `--batch-size 64` استفاده کنید. در صورت کمبود حافظه می‌توانید آن را کاهش دهید.
 
 این مدل‌ها و نکات می‌توانند به شما در پردازش داده‌های متنی به زبان‌های فارسی و عربی با CPU کمک کنند.
 
@@ -99,8 +99,8 @@ python3 export-sql-backup-to-chromadb.py \
   --collection book_pages_parsbert \
   --embedding-provider huggingface \
   --embedding-model "HooshvareLab/bert-base-parsbert-uncased" \
-  --batch-size 32 \
-  --max-length 200 \
+  --batch-size 64 \
+  --max-length 500 \
   --context 100 \
   --device cuda
 ```
@@ -113,8 +113,8 @@ python3 export-sql-backup-to-chromadb.py \
   --collection book_pages_arabert \
   --embedding-provider huggingface \
   --embedding-model "aubmindlab/bert-base-arabertv2" \
-  --batch-size 32 \
-  --max-length 200 \
+  --batch-size 64 \
+  --max-length 500 \
   --context 100 \
   --device cuda
 ```
@@ -127,8 +127,8 @@ python3 export-sql-backup-to-chromadb.py \
   --collection book_pages_fabert \
   --embedding-provider huggingface \
   --embedding-model "sbunlp/fabert" \
-  --batch-size 24 \
-  --max-length 200 \
+  --batch-size 64 \
+  --max-length 500 \
   --context 100
 ```
 
@@ -140,8 +140,8 @@ python3 export-sql-backup-to-chromadb.py \
   --collection book_pages_mbert \
   --embedding-provider huggingface \
   --embedding-model "bert-base-multilingual-cased" \
-  --batch-size 32 \
-  --max-length 200 \
+  --batch-size 64 \
+  --max-length 500 \
   --context 100 \
   --device cuda
 ```
@@ -154,8 +154,8 @@ python3 export-sql-backup-to-chromadb.py \
   --collection book_pages_xlmr \
   --embedding-provider huggingface \
   --embedding-model "xlm-roberta-base" \
-  --batch-size 24 \
-  --max-length 200 \
+  --batch-size 64 \
+  --max-length 500 \
   --context 100 \
   --device cuda
 ```
@@ -168,8 +168,8 @@ python3 export-sql-backup-to-chromadb.py \
   --collection book_pages_parsbert_cpu \
   --embedding-provider huggingface \
   --embedding-model "HooshvareLab/bert-base-parsbert-uncased" \
-  --batch-size 16 \
-  --max-length 200 \
+  --batch-size 64 \
+  --max-length 500 \
   --context 100 \
   --device cpu
 ```
@@ -182,7 +182,7 @@ python3 export-sql-backup-to-chromadb.py \
 export EMBEDDING_PROVIDER=huggingface
 export EMBEDDING_MODEL="HooshvareLab/bert-base-parsbert-uncased"
 export EMBEDDING_DEVICE=cuda
-export CHROMA_BATCH_SIZE=32
+export CHROMA_BATCH_SIZE=64
 
 python export-sql-backup-to-chromadb.py --sql-path book_pages.sql
 ```
@@ -193,7 +193,7 @@ python export-sql-backup-to-chromadb.py --sql-path book_pages.sql
 $env:EMBEDDING_PROVIDER="huggingface"
 $env:EMBEDDING_MODEL="HooshvareLab/bert-base-parsbert-uncased"
 $env:EMBEDDING_DEVICE="cuda"
-$env:CHROMA_BATCH_SIZE="32"
+$env:CHROMA_BATCH_SIZE="64"
 
 python export-sql-backup-to-chromadb.py --sql-path book_pages.sql
 ```
@@ -205,7 +205,7 @@ python export-sql-backup-to-chromadb.py --sql-path book_pages.sql
 ### برای شروع تست:
 
 1. **ابتدا با ParsBERT تست کنید** (مدل فارسی محبوب و قابل اعتماد)
-2. **از batch-size کوچکتر شروع کنید** (16-24) برای تست سریع‌تر
+2. **از batch-size مناسب شروع کنید** (64) برای تست سریع‌تر
 3. **اگر GPU دارید، از `--device cuda` استفاده کنید** (سرعت بسیار بیشتر)
 
 ### تست مقایسه‌ای بین مدل‌ها:
@@ -217,7 +217,7 @@ python export-sql-backup-to-chromadb.py \
   --collection test_parsbert \
   --embedding-provider huggingface \
   --embedding-model "HooshvareLab/bert-base-parsbert-uncased" \
-  --batch-size 16
+  --batch-size 64
 
 # تست 2: AraBERT
 python export-sql-backup-to-chromadb.py \
@@ -225,7 +225,7 @@ python export-sql-backup-to-chromadb.py \
   --collection test_arabert \
   --embedding-provider huggingface \
   --embedding-model "aubmindlab/bert-base-arabertv2" \
-  --batch-size 16
+  --batch-size 64
 
 # تست 3: mBERT (چندزبانه)
 python export-sql-backup-to-chromadb.py \
@@ -233,7 +233,7 @@ python export-sql-backup-to-chromadb.py \
   --collection test_mbert \
   --embedding-provider huggingface \
   --embedding-model "bert-base-multilingual-cased" \
-  --batch-size 16
+  --batch-size 64
 ```
 
 ---
@@ -242,15 +242,15 @@ python export-sql-backup-to-chromadb.py \
 
 ### تنظیمات Batch Size:
 
-- **با GPU**: `--batch-size 24-32` (پیشنهاد: 32)
-- **بدون GPU (CPU)**: `--batch-size 8-16` (پیشنهاد: 16)
-- **مدل‌های بزرگتر** (مثل XLM-RoBERTa): batch-size کوچکتر (16-24)
+- **با GPU**: `--batch-size 64` (پیشنهاد: 64)
+- **بدون GPU (CPU)**: `--batch-size 64` (پیشنهاد: 64)
+- **مدل‌های بزرگتر** (مثل XLM-RoBERTa): در صورت کمبود حافظه می‌توانید batch-size را کاهش دهید
 
 ### مدیریت حافظه:
 
 - **مدل‌های بزرگتر** (مثل XLM-RoBERTa) ممکن است به RAM بیشتر نیاز داشته باشند
 - اگر خطای Out of Memory دریافت کردید، `--batch-size` را کاهش دهید
-- برای CPU، batch-size را به 8 یا کمتر کاهش دهید
+- برای CPU، در صورت کمبود حافظه batch-size را کاهش دهید
 
 ### دانلود مدل:
 

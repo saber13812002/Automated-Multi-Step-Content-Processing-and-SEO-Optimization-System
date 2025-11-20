@@ -14,7 +14,7 @@
 cd export-sql-chromadb
 python dataset_stats.py \
   --sql-path export-sql-chromadb/books_pages_mini.sql \
-  --max-length 200 \
+  --max-length 500 \
   --context 100 \
   --min-paragraph-lines 3 \
   --segments-per-second 45 \

@@ -58,9 +58,9 @@ pip install -r requirements.txt
 - `CHROMA_HOST`, `CHROMA_PORT`, `CHROMA_SSL`, `CHROMA_API_KEY`: تنظیمات اتصال به سرور ChromaDB
 - `CHROMA_COLLECTION`: نام کالکشن مقصد (پیش‌فرض `book_pages`)
 - `OPENAI_API_KEY`: کلید OpenAI برای تولید امبدینگ
-- `CHUNK_MAX_LENGTH`: طول هر قطعه متنی (پیش‌فرض ۲۰۰ کاراکتر)
+- `CHUNK_MAX_LENGTH`: طول هر قطعه متنی (پیش‌فرض ۵۰۰ کاراکتر)
 - `CHUNK_CONTEXT_LENGTH`: طول متن زمینه قبل و بعد از هر قطعه (پیش‌فرض ۱۰۰ کاراکتر)
-- `CHROMA_BATCH_SIZE`: اندازه دسته برای بارگذاری (پیش‌فرض ۴۸)
+- `CHROMA_BATCH_SIZE`: اندازه دسته برای بارگذاری (پیش‌فرض ۶۴)
 
 ## اجرای اسکریپت صادرات
 
@@ -96,7 +96,7 @@ python export-sql-backup-to-chromadb.py \
   --collection book_pages_parsbert \
   --embedding-provider huggingface \
   --embedding-model "HooshvareLab/bert-base-parsbert-uncased" \
-  --batch-size 32
+  --batch-size 64
 ```
 
 **نصب وابستگی‌های HuggingFace:**
