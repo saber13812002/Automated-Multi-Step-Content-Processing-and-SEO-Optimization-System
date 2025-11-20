@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # API Authentication settings
     enable_api_auth: bool = Field(default=False, alias="ENABLE_API_AUTH")
     default_rate_limit_per_day: PositiveInt = Field(default=1000, alias="DEFAULT_RATE_LIMIT_PER_DAY")
+    
+    # Search cache settings
+    default_use_cache: bool = Field(default=True, alias="DEFAULT_USE_CACHE")
+    search_cache_ttl: PositiveInt = Field(default=3600, alias="SEARCH_CACHE_TTL")  # 1 hour in seconds
 
     model_config = SettingsConfigDict(
         env_file=_DEFAULT_ENV_PATH if _DEFAULT_ENV_PATH.exists() else None,

@@ -336,6 +336,25 @@ def _build_multi_search_cache_key(query: str, model_ids: List[int], top_k: int) 
     return f"multi-search:{digest}:{ids_part}:k{top_k}"
 
 
+def _build_single_search_cache_key(
+    query: str,
+    provider: str,
+    model: str,
+    collection: str,
+    top_k: int,
+    page: int = 1,
+    page_size: int = 20,
+    include_full_context: bool = False,
+) -> str:
+    """Create deterministic cache key for single-model search with model info."""
+    normalized_query = " ".join(query.strip().lower().split())
+    digest = hashlib.sha256(normalized_query.encode("utf-8")).hexdigest()
+    # Include model info to ensure cache is model-specific
+    model_part = f"{provider}:{model}:{collection}"
+    context_flag = "ctx" if include_full_context else "seg"
+    return f"search:{digest}:{model_part}:k{top_k}:p{page}:ps{page_size}:{context_flag}"
+
+
 @app.post(
     "/search",
     response_model=SearchResponse,
@@ -367,6 +386,33 @@ async def search_documents(
     settings: Settings = app_state["settings"]
     collection = app_state["collection"]
     embedder = app_state["embedder"]
+    redis_client = app_state.get("redis_client")
+    
+    # Check Redis cache if enabled
+    use_cache = payload.use_cache if hasattr(payload, 'use_cache') else settings.default_use_cache
+    include_full_context = getattr(payload, 'include_full_context', False)
+    if use_cache and redis_client:
+        cache_key = _build_single_search_cache_key(
+            query=payload.query,
+            provider=settings.embedding_provider,
+            model=settings.embedding_model,
+            collection=settings.chroma_collection,
+            top_k=payload.top_k,
+            page=payload.page,
+            page_size=payload.page_size,
+            include_full_context=include_full_context,
+        )
+        try:
+            cached_raw = redis_client.get(cache_key)
+            if cached_raw:
+                cached_data = json.loads(cached_raw)
+                logger.info("Cache hit for query: %s", payload.query[:50])
+                return SearchResponse(
+                    **cached_data,
+                    cache_source="cache",
+                )
+        except Exception as cache_exc:
+            logger.debug("Cache read failed: %s", cache_exc)
 
     # Validate that query embedding model matches collection's export model
     try:
@@ -464,19 +510,94 @@ async def search_documents(
         documents = documents[start_idx:end_idx]
         metadatas = metadatas[start_idx:end_idx]
 
+    # Helper function to get paragraph context
+    async def get_paragraph_context(
+        coll, book_id: int, page_id: int, paragraph_index: int
+    ) -> Optional[str]:
+        """Fetch and combine all segments from the same paragraph."""
+        try:
+            # Try to get paragraph_full_text from metadata first (faster)
+            # If not available, fetch all segments and combine
+            para_results = await anyio.to_thread.run_sync(
+                lambda: coll.get(
+                    where={
+                        "book_id": book_id,
+                        "page_id": page_id,
+                        "paragraph_index": paragraph_index,
+                    },
+                    include=["documents", "metadatas"],
+                )
+            )
+            
+            if not para_results.get("ids") or len(para_results["ids"]) == 0:
+                return None
+            
+            # Check if paragraph_full_text is in metadata
+            metadatas_list = para_results.get("metadatas", [])
+            if metadatas_list and len(metadatas_list) > 0:
+                first_meta = metadatas_list[0]
+                if first_meta and "paragraph_full_text" in first_meta:
+                    return first_meta["paragraph_full_text"]
+            
+            # Otherwise, combine segments
+            segment_docs = para_results.get("documents", [])
+            segment_metas = para_results.get("metadatas", [])
+            
+            # Create list of (segment_index, document) tuples
+            segments_list = []
+            for seg_idx, seg_meta in enumerate(segment_metas):
+                if seg_idx < len(segment_docs):
+                    seg_index = seg_meta.get("segment_index", 0) if seg_meta else 0
+                    segments_list.append((seg_index, segment_docs[seg_idx]))
+            
+            # Sort by segment_index and combine
+            segments_list.sort(key=lambda x: x[0])
+            combined_text = " ".join([doc for _, doc in segments_list])
+            return combined_text
+        except Exception as exc:
+            logger.debug("Failed to fetch paragraph context: %s", exc)
+            return None
+
     response_items: List[SearchResult] = []
     for index, doc_id in enumerate(ids):
         distance = distances[index] if index < len(distances) else None
         score = None
         if distance is not None:
             score = 1.0 - distance
+        
+        metadata = metadatas[index] if index < len(metadatas) else {}
+        document_text = documents[index] if index < len(documents) else None
+        
+        # If include_full_context is requested and this is a segment (not page-level)
+        if include_full_context and metadata and not metadata.get("page_level"):
+            # Try to get paragraph_full_text from metadata first
+            if "paragraph_full_text" in metadata:
+                document_text = metadata["paragraph_full_text"]
+            else:
+                # Fetch all segments from same paragraph and combine
+                book_id = metadata.get("book_id")
+                page_id = metadata.get("page_id")
+                para_index = metadata.get("paragraph_index")
+                if book_id is not None and page_id is not None and para_index is not None:
+                    para_context = await get_paragraph_context(collection, book_id, page_id, para_index)
+                    if para_context:
+                        document_text = para_context
+        
+        # Log document length for debugging (first result only)
+        if index == 0 and document_text:
+            logger.debug(
+                "First result document length: %d chars (metadata segment_length: %s)",
+                len(document_text),
+                metadata.get("segment_length", "N/A"),
+            )
+        
         response_items.append(
             SearchResult(
                 id=str(doc_id),
                 distance=distance if distance is not None else None,
                 score=score,
-                document=documents[index] if index < len(documents) else None,
-                metadata=metadatas[index] if index < len(metadatas) else {},
+                document=document_text,
+                metadata=metadata,
             )
         )
 
@@ -546,7 +667,52 @@ async def search_documents(
         took_ms=took_ms,
         total_documents=total_documents,
         pagination=pagination,
+        cache_source="realtime",  # Mark as realtime (not from cache)
     )
+    
+    # Store in Redis cache if enabled
+    if use_cache and redis_client and response_items:
+        try:
+            cache_key = _build_single_search_cache_key(
+                query=payload.query,
+                provider=settings.embedding_provider,
+                model=settings.embedding_model,
+                collection=settings.chroma_collection,
+                top_k=payload.top_k,
+                page=payload.page,
+                page_size=payload.page_size,
+                include_full_context=include_full_context,
+            )
+            # Convert response to dict for caching
+            response_dict = {
+                "query": response.query,
+                "collection": response.collection,
+                "provider": response.provider,
+                "model": response.model,
+                "returned": response.returned,
+                "top_k": response.top_k,
+                "results": [
+                    {
+                        "id": r.id,
+                        "distance": r.distance,
+                        "score": r.score,
+                        "document": r.document,
+                        "metadata": r.metadata,
+                    }
+                    for r in response.results
+                ],
+                "took_ms": response.took_ms,
+                "total_documents": response.total_documents,
+                "pagination": response.pagination.dict() if response.pagination else None,
+            }
+            redis_client.setex(
+                cache_key,
+                settings.search_cache_ttl,
+                json.dumps(response_dict, ensure_ascii=False),
+            )
+            logger.debug("Cached search result for key: %s", cache_key)
+        except Exception as cache_exc:
+            logger.warning("Failed to cache search result: %s", cache_exc)
 
     # Save to database if requested
     if payload.save:
@@ -1030,6 +1196,53 @@ async def get_history_item(search_id: int):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to retrieve search history item: {exc}",
+        ) from exc
+
+
+@app.get("/admin/debug/segment-info/{doc_id:path}", tags=["admin", "debug"])
+async def get_segment_info(
+    doc_id: str,
+    app_state: Dict[str, Any] = Depends(get_app_state),
+):
+    """Get diagnostic information about a segment/document."""
+    try:
+        settings: Settings = app_state["settings"]
+        collection = app_state["collection"]
+        
+        # Get document from ChromaDB
+        result = await anyio.to_thread.run_sync(
+            lambda: collection.get(ids=[doc_id], include=["documents", "metadatas"])
+        )
+        
+        if not result.get("ids") or len(result["ids"][0]) == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Document {doc_id} not found",
+            )
+        
+        document = result["documents"][0][0] if result["documents"] else None
+        metadata = result["metadatas"][0][0] if result["metadatas"] else {}
+        
+        stored_text_length = len(document) if document else 0
+        metadata_segment_length = metadata.get("segment_length", 0)
+        actual_retrieved_length = len(document) if document else 0
+        
+        return {
+            "doc_id": doc_id,
+            "stored_text_length": stored_text_length,
+            "metadata_segment_length": metadata_segment_length,
+            "actual_retrieved_length": actual_retrieved_length,
+            "length_match": stored_text_length == metadata_segment_length,
+            "metadata": metadata,
+            "text_preview": document[:200] + "..." if document and len(document) > 200 else document,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to get segment info")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve segment info: {exc}",
         ) from exc
 
 

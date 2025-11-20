@@ -39,6 +39,16 @@ class SearchRequest(BaseModel):
         description="تعداد نتایج در هر صفحه",
         example=20,
     )
+    use_cache: bool = Field(
+        True,
+        description="استفاده از کش Redis برای نتایج (اگر در کمتر از 1 ساعت جستجو شده باشد)",
+        example=True,
+    )
+    include_full_context: bool = Field(
+        False,
+        description="شامل کردن متن کامل پاراگراف به جای فقط سگمنت",
+        example=False,
+    )
 
 
 class SearchResult(BaseModel):
@@ -70,6 +80,7 @@ class SearchResponse(BaseModel):
     timestamp: datetime = Field(default_factory=datetime.utcnow)
     total_documents: Optional[int] = Field(None, description="Total documents in collection.")
     pagination: Optional[PaginationInfo] = Field(None, description="Pagination information.")
+    cache_source: Optional[str] = Field(None, description="منبع نتایج (cache یا realtime)")
 
 
 class MultiModelSearchRequest(BaseModel):

@@ -704,6 +704,37 @@
                         required
                     >
                 </div>
+                <div class="search-input-group" style="flex: 0 0 auto; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <input 
+                        type="checkbox" 
+                        id="useCache" 
+                        checked
+                        style="width: 18px; height: 18px; cursor: pointer;"
+                    >
+                    <label for="useCache" style="margin: 0; cursor: pointer; font-size: 0.9rem;">
+                        استفاده از کش
+                        <span class="info-icon" style="margin-right: 4px;">
+                            ℹ
+                            <span class="info-tooltip" style="max-width: 250px;">
+                                استفاده از نتایج کش شده در Redis (اگر همان کوئری و مدل در کمتر از 1 ساعت جستجو شده باشد)
+                            </span>
+                        </span>
+                    </label>
+                    <input 
+                        type="checkbox" 
+                        id="includeFullContext" 
+                        style="width: 18px; height: 18px; cursor: pointer; margin-right: 12px;"
+                    >
+                    <label for="includeFullContext" style="margin: 0; cursor: pointer; font-size: 0.9rem;">
+                        متن کامل پاراگراف
+                        <span class="info-icon" style="margin-right: 4px;">
+                            ℹ
+                            <span class="info-tooltip" style="max-width: 250px;">
+                                نمایش متن کامل پاراگراف به جای فقط سگمنت پیدا شده (برای درک بهتر محتوا)
+                            </span>
+                        </span>
+                    </label>
+                </div>
                 <button type="submit" class="search-button" id="searchButton">
                     جستجو
                 </button>
@@ -754,7 +785,10 @@
             'segment_length': 'طول قطعه',
             'segment_start': 'شروع قطعه',
             'has_error': 'دارای خطا',
-            'record_id': 'شناسه رکورد'
+            'record_id': 'شناسه رکورد',
+            'paragraph_full_text': 'متن کامل پاراگراف',
+            'page_full_text': 'متن کامل صفحه',
+            'page_full_text_hash': 'هش متن کامل صفحه'
         };
 
         // Tooltip descriptions for metadata fields
@@ -772,7 +806,10 @@
             'segment_length': 'طول قطعه به تعداد کاراکتر.',
             'segment_start': 'موقعیت شروع قطعه در پاراگراف (بر اساس تعداد کاراکتر).',
             'has_error': 'نشان می‌دهد که آیا این رکورد در هنگام پردازش خطایی داشته است یا خیر.',
-            'record_id': 'شناسه یکتای رکورد در پایگاه داده اصلی.'
+            'record_id': 'شناسه یکتای رکورد در پایگاه داده اصلی.',
+            'paragraph_full_text': 'متن کامل پاراگراف که این سگمنت از آن استخراج شده است.',
+            'page_full_text': 'متن کامل صفحه که این سگمنت از آن استخراج شده است.',
+            'page_full_text_hash': 'هش SHA256 متن کامل صفحه برای صفحات بزرگ (بیش از 50KB).'
         };
         
         const searchForm = document.getElementById('searchForm');
@@ -806,6 +843,8 @@
             
             const query = document.getElementById('query').value.trim();
             const topK = parseInt(document.getElementById('topK').value);
+            const useCache = document.getElementById('useCache').checked;
+            const includeFullContext = document.getElementById('includeFullContext').checked;
             
             if (!query) {
                 showError('لطفاً متن جستجو را وارد کنید.');
@@ -823,7 +862,7 @@
             url.searchParams.set('page', '1');
             window.history.pushState({}, '', url);
 
-            await performSearch(query, topK, 1);
+            await performSearch(query, topK, 1, useCache, includeFullContext);
         });
         
         // Load query from URL on page load
@@ -841,6 +880,7 @@
             historySection.style.display = 'block';
             loadHistory();
             loadActiveModels();
+            loadSettings();
             initGuestUser();
         });
 
@@ -897,6 +937,36 @@
             }
         }
 
+        async function loadSettings() {
+            try {
+                // Load default cache setting from localStorage or use default
+                const storedCacheSetting = localStorage.getItem('useCache');
+                if (storedCacheSetting !== null) {
+                    document.getElementById('useCache').checked = storedCacheSetting === 'true';
+                } else {
+                    // Default to true (can be changed via env var DEFAULT_USE_CACHE)
+                    document.getElementById('useCache').checked = true;
+                }
+                // Load full context setting
+                const storedFullContextSetting = localStorage.getItem('includeFullContext');
+                if (storedFullContextSetting !== null) {
+                    document.getElementById('includeFullContext').checked = storedFullContextSetting === 'true';
+                } else {
+                    document.getElementById('includeFullContext').checked = false;
+                }
+            } catch (error) {
+                console.warn('Failed to load settings', error);
+            }
+        }
+
+        // Save preferences to localStorage
+        document.getElementById('useCache')?.addEventListener('change', (e) => {
+            localStorage.setItem('useCache', e.target.checked.toString());
+        });
+        document.getElementById('includeFullContext')?.addEventListener('change', (e) => {
+            localStorage.setItem('includeFullContext', e.target.checked.toString());
+        });
+
         function renderModelChips() {
             if (!activeModels || activeModels.length === 0) {
                 modelSelector.style.display = 'none';
@@ -947,7 +1017,7 @@
             return Array.from(selectedModelIds);
         }
 
-        async function performSearch(query, topK, page = 1) {
+        async function performSearch(query, topK, page = 1, useCache = true, includeFullContext = false) {
             // Clear previous results
             errorContainer.innerHTML = '';
             resultsContainer.innerHTML = '';
@@ -978,7 +1048,9 @@
                         top_k: topK,
                         page,
                         page_size: 20,
-                        save: true
+                        save: true,
+                        use_cache: useCache,
+                        include_full_context: includeFullContext
                     };
                 const response = await fetch(endpoint, {
                     method: 'POST',
@@ -1039,7 +1111,9 @@
         
         function goToPage(page) {
             if (currentQuery) {
-                performSearch(currentQuery, currentTopK, page);
+                const useCache = document.getElementById('useCache').checked;
+                const includeFullContext = document.getElementById('includeFullContext').checked;
+                performSearch(currentQuery, currentTopK, page, useCache, includeFullContext);
             }
         }
 
@@ -1085,7 +1159,7 @@
                 return;
             }
 
-            const cacheLabel = data.cache_source ? ` | منبع: ${data.cache_source === 'cache' ? 'کش' : 'زنده'}` : '';
+            const cacheLabel = data.cache_source ? ` | منبع: ${data.cache_source === 'cache' ? 'کش (Redis)' : 'زنده'}` : '';
             let html = `
                 <div class="results-container">
                     <div class="results-header">

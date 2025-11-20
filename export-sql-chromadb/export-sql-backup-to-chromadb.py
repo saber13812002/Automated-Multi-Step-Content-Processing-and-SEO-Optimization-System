@@ -364,18 +364,37 @@ def segment_paragraph(
     max_length: int,
     context_length: int,
 ) -> List[Tuple[str, Tuple[int, int]]]:
+    """
+    Split paragraph into segments of max_length characters.
+    
+    Returns list of (segment_text, (start, end)) tuples where:
+    - segment_text: The actual segment text (paragraph[start:end]), exactly max_length chars
+    - (start, end): Character positions in the original paragraph
+    
+    Note: context_length is stored in metadata but the actual stored text
+    is the segment itself (max_length chars), not the context-extended version.
+    """
     if len(paragraph) <= max_length:
         return [(paragraph, (0, len(paragraph)))]
 
     segments: List[Tuple[str, Tuple[int, int]]] = []
-    for start in range(0, len(paragraph), max_length):
+    # Calculate step size: move forward by (max_length - overlap)
+    # Overlap is context_length on each side, so effective step is max_length - context_length
+    step_size = max(1, max_length - context_length) if context_length > 0 else max_length
+    
+    start = 0
+    while start < len(paragraph):
         end = min(start + max_length, len(paragraph))
-        context_start = max(0, start - context_length)
-        context_end = min(len(paragraph), end + context_length)
-        context_chunk = paragraph[context_start:context_end]
-        segments.append((context_chunk, (start, end)))
-        if end == len(paragraph):
+        # Store the actual segment text (not context-extended)
+        segment_text = paragraph[start:end]
+        segments.append((segment_text, (start, end)))
+        
+        if end >= len(paragraph):
             break
+        
+        # Move to next segment with overlap
+        start += step_size
+    
     return segments
 
 
@@ -436,6 +455,12 @@ def build_segments(
             max_length=max_length,
             context_length=context_length,
         )
+        # Store full paragraph text if it's not too large (for context retrieval)
+        paragraph_full_text = payload.text if len(payload.text) < 10000 else ""  # Max 10KB
+        
+        # Store full paragraph text if it's not too large (for context retrieval)
+        paragraph_full_text = payload.text if len(payload.text) < 10000 else ""  # Max 10KB
+        
         for segment_index, (segment_text, (start, end)) in enumerate(chunked):
             doc_id = f"{record.book_id}-{record.page_id}-{para_index}-{segment_index}-{uuid.uuid4().hex[:8]}"
             metadata = {
@@ -458,6 +483,12 @@ def build_segments(
                 "has_error": bool(record.error),
                 "error": record.error or "",
             }
+            # Add full paragraph text if available and not too large
+            if paragraph_full_text:
+                metadata["paragraph_full_text"] = paragraph_full_text
+            # Add full paragraph text if available and not too large
+            if paragraph_full_text:
+                metadata["paragraph_full_text"] = paragraph_full_text
             # Clean metadata to ensure all values are valid ChromaDB types
             cleaned_metadata = clean_metadata_for_chroma(metadata)
             segments.append(
@@ -514,6 +545,13 @@ def build_segments(
             "has_error": bool(record.error),
             "error": record.error or "",
         }
+        # Store full page text reference (hash for large pages)
+        if len(text) < 50000:  # Store directly if < 50KB
+            page_metadata["page_full_text"] = text
+        else:
+            # For large pages, store a hash that can be used to retrieve from SQL later
+            import hashlib
+            page_metadata["page_full_text_hash"] = hashlib.sha256(text.encode('utf-8')).hexdigest()
         # Clean metadata to ensure all values are valid ChromaDB types
         cleaned_page_metadata = clean_metadata_for_chroma(page_metadata)
         segments.append(Segment(document_id=page_doc_id, text=text, metadata=cleaned_page_metadata))
@@ -760,6 +798,12 @@ def export_to_chroma(args: argparse.Namespace, job_id: Optional[int] = None) -> 
             if book_id:
                 processed_books.add(book_id)
 
+        # Verify segment lengths (debug logging)
+        if batch_number == 1:  # Log only first batch for debugging
+            sample_lengths = [len(doc) for doc in documents[:5]]
+            avg_length = sum(len(doc) for doc in documents) / len(documents) if documents else 0
+            print(f"   📊 نمونه طول سگمنت‌ها: {sample_lengths} | میانگین: {avg_length:.1f} کاراکتر", flush=True)
+        
         # Generate embeddings
         print(f"🔄 بچ #{batch_number}: در حال تولید امبدینگ برای {len(batch)} قطعه...", end=" ", flush=True)
         embeddings = embedding_provider.embed(documents)
