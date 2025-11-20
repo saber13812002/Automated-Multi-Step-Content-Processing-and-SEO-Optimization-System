@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.responses import JSONResponse as StarletteJSONResponse
 
 from .clients import (
+    create_embedder_for_model,
     get_chroma_client,
     get_collection,
     get_query_embedder,
@@ -692,13 +693,56 @@ async def multi_model_search(
             continue  # Skip this model and continue with others
 
         try:
-            query_func = partial(
-                collection.query,
-                query_texts=[payload.query],
-                n_results=fetch_n,
-                include=include_fields,
-            )
-            results = await anyio.to_thread.run_sync(query_func)
+            # Create embedder for this specific model
+            try:
+                embedder = create_embedder_for_model(
+                    provider=model_info["embedding_provider"],
+                    model=model_info["embedding_model"],
+                    api_key=settings.openai_api_key,
+                    device="",  # Auto-detect device for HuggingFace
+                )
+                # Generate embeddings with model-specific embedder
+                query_embeddings = await anyio.to_thread.run_sync(
+                    embedder.embed, [payload.query]
+                )
+                if not query_embeddings or len(query_embeddings) == 0:
+                    raise ValueError("Failed to generate embeddings for query")
+                
+                # Query using the generated embeddings
+                query_func = partial(
+                    collection.query,
+                    query_embeddings=query_embeddings,
+                    n_results=fetch_n,
+                    include=include_fields,
+                )
+                results = await anyio.to_thread.run_sync(query_func)
+                logger.debug(
+                    "✅ Query embedded and searched for model %s/%s in collection '%s'",
+                    model_info["embedding_provider"],
+                    model_info["embedding_model"],
+                    collection_name,
+                )
+            except Exception as embed_exc:
+                # Fallback: try query_texts if collection has embedding function
+                logger.debug(
+                    "Model-specific embedding failed for '%s', trying collection's embedding function: %s",
+                    collection_name,
+                    embed_exc,
+                )
+                try:
+                    query_func = partial(
+                        collection.query,
+                        query_texts=[payload.query],
+                        n_results=fetch_n,
+                        include=include_fields,
+                    )
+                    results = await anyio.to_thread.run_sync(query_func)
+                    logger.warning(
+                        "⚠️  Used collection's embedding function instead of model-specific embedder for '%s'",
+                        collection_name,
+                    )
+                except Exception as text_query_exc:
+                    raise embed_exc from text_query_exc
         except Exception as exc:  # pragma: no cover - network errors
             error_msg = f"جستجو در کالکشن {collection_name} ناموفق بود"
             logger.warning(
@@ -755,14 +799,22 @@ async def multi_model_search(
     elif successful_count == 1:
         combined_results = per_model_results[successful_model_ids[0]][:per_model_limit]
     else:
+        # Round-robin merge with deduplication by document ID
+        seen_doc_ids: set[str] = set()
         max_depth = max((len(per_model_results.get(mid, [])) for mid in successful_model_ids), default=0)
         for depth in range(max_depth):
             for model_id in successful_model_ids:
+                if len(combined_results) >= overall_limit:
+                    break
                 model_items = per_model_results.get(model_id, [])
                 if depth < len(model_items):
-                    combined_results.append(model_items[depth])
-                    if len(combined_results) >= overall_limit:
-                        break
+                    item = model_items[depth]
+                    doc_id = item.get("id")
+                    # Deduplicate: if we've seen this document, skip it
+                    # (keep the first occurrence which has better score from earlier model)
+                    if doc_id and doc_id not in seen_doc_ids:
+                        combined_results.append(item)
+                        seen_doc_ids.add(doc_id)
             if len(combined_results) >= overall_limit:
                 break
 

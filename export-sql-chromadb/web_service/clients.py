@@ -55,6 +55,90 @@ class QueryEmbedder:
         return embeddings
 
 
+class MultiModelEmbedder:
+    """Embedder that supports multiple providers (OpenAI, HuggingFace)."""
+    
+    def __init__(self, provider: str, model: str, api_key: str = "", device: str = ""):
+        self.provider = provider
+        self.model = model
+        self._embedding_function = None
+        
+        if provider == "openai":
+            if not api_key:
+                raise RuntimeError("OPENAI_API_KEY is required for OpenAI embeddings.")
+            if embedding_functions is None:
+                raise RuntimeError("chromadb.utils.embedding_functions is unavailable.")
+            self._embedding_function = embedding_functions.OpenAIEmbeddingFunction(
+                api_key=api_key,
+                model_name=model,
+            )
+        elif provider == "huggingface":
+            try:
+                from transformers import AutoTokenizer, AutoModel
+                import torch
+                import numpy as np
+            except ImportError:
+                raise RuntimeError(
+                    "transformers library is required for HuggingFace embeddings. "
+                    "Install it with: pip install transformers torch"
+                )
+            
+            self.device = device if device else ("cuda" if torch.cuda.is_available() else "cpu")
+            logger.info("Loading HuggingFace model %s on %s", model, self.device)
+            self.tokenizer = AutoTokenizer.from_pretrained(model)
+            self.model_obj = AutoModel.from_pretrained(model)
+            self.model_obj.to(self.device)
+            self.model_obj.eval()
+            logger.info("HuggingFace model loaded successfully")
+        else:
+            raise RuntimeError(f"Unsupported embedding provider: {provider}")
+    
+    def embed(self, texts: Sequence[str]) -> List[List[float]]:
+        if not texts:
+            return []
+        
+        if self.provider == "openai":
+            return self._embedding_function(texts)
+        elif self.provider == "huggingface":
+            import torch
+            # Tokenize
+            encoded = self.tokenizer(
+                texts,
+                padding=True,
+                truncation=True,
+                max_length=512,
+                return_tensors="pt"
+            )
+            encoded = {k: v.to(self.device) for k, v in encoded.items()}
+            
+            # Generate embeddings
+            with torch.no_grad():
+                outputs = self.model_obj(**encoded)
+                embeddings = outputs.last_hidden_state
+                attention_mask = encoded["attention_mask"]
+                mask_expanded = attention_mask.unsqueeze(-1).expand(embeddings.size()).float()
+                sum_embeddings = torch.sum(embeddings * mask_expanded, dim=1)
+                sum_mask = torch.clamp(mask_expanded.sum(dim=1), min=1e-9)
+                embeddings = sum_embeddings / sum_mask
+            
+            return embeddings.cpu().numpy().tolist()
+        else:
+            raise RuntimeError(f"Unsupported provider: {self.provider}")
+
+
+def create_embedder_for_model(
+    provider: str,
+    model: str,
+    api_key: str = "",
+    device: str = "",
+) -> MultiModelEmbedder:
+    """Create an embedder for a specific model/provider combination."""
+    settings = get_settings()
+    # Use provided API key or fallback to settings
+    final_api_key = api_key or settings.openai_api_key
+    return MultiModelEmbedder(provider, model, final_api_key, device)
+
+
 def get_chroma_client(settings: Settings | None = None):
     """Create or return ChromaDB client. Not cached to avoid unhashable Settings object.
     
@@ -262,10 +346,12 @@ def validate_embedder_config(settings: Settings | None = None) -> tuple[bool, st
 
 
 __all__ = [
+    "create_embedder_for_model",
     "get_chroma_client",
     "get_collection",
     "get_query_embedder",
     "get_redis_client",
+    "MultiModelEmbedder",
     "QueryEmbedder",
     "validate_chroma_connection",
     "validate_redis_connection",
