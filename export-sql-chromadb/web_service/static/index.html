@@ -294,19 +294,6 @@
             margin-right: 8px;
         }
 
-        .result-metadata {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 15px;
-        }
-
-        @media (max-width: 768px) {
-            .result-metadata {
-                grid-template-columns: 1fr;
-                gap: 12px;
-            }
-        }
 
         .metadata-item {
             display: flex;
@@ -1235,8 +1222,6 @@
             }
 
             const renderDocumentWithContext = (document, metadata) => {
-                if (!document) return '';
-                
                 const meta = metadata || {};
                 const bookTitle = meta.book_title || '';
                 const sectionTitle = meta.section_title || '';
@@ -1246,6 +1231,9 @@
                 const segmentLength = meta.segment_length !== undefined ? meta.segment_length : '';
                 const sourceLink = meta.source_link || '';
                 const pageLevel = meta.page_level === true;
+                
+                // Use paragraph_full_text from metadata if available, otherwise use document
+                let documentText = meta.paragraph_full_text || document || '';
                 
                 // Build context info
                 let contextInfo = [];
@@ -1268,8 +1256,7 @@
                     contextInfo.push(`<strong>طول:</strong> ${escapeHtml(String(segmentLength))} کاراکتر`);
                 }
                 
-                // Build source link
-                let sourceLinkHtml = '';
+                // Add full source link to context
                 if (sourceLink) {
                     let url = String(sourceLink).trim();
                     if ((url.startsWith("'") && url.endsWith("'")) || (url.startsWith('"') && url.endsWith('"'))) {
@@ -1277,35 +1264,9 @@
                     }
                     const isAbsolute = /^https?:\/\//i.test(url);
                     if (isAbsolute) {
-                        let displayText = url;
-                        try {
-                            const urlObj = new URL(url);
-                            const pathMatch = urlObj.pathname.match(/\/node\/(\d+)/);
-                            const hash = urlObj.hash;
-                            if (pathMatch && pathMatch[1]) {
-                                displayText = pathMatch[1] + hash;
-                            } else {
-                                const pathParts = urlObj.pathname.split('/').filter(p => p);
-                                if (pathParts.length > 0) {
-                                    displayText = pathParts[pathParts.length - 1] + hash;
-                                }
-                            }
-                        } catch (e) {
-                            const match = url.match(/(?:node\/)?(\d+)(#p\d+)?$/i);
-                            if (match) {
-                                displayText = match[1] + (match[2] || '');
-                            } else {
-                                const parts = url.split('/');
-                                displayText = parts[parts.length - 1] || url;
-                            }
-                        }
-                        sourceLinkHtml = `
-                            <div class="document-source-link">
-                                <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" class="source-link-btn">
-                                    🔗 مشاهده منبع: ${escapeHtml(displayText)}
-                                </a>
-                            </div>
-                        `;
+                        contextInfo.push(`<strong>لینک منبع:</strong> <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" style="color: #667eea; text-decoration: underline;">${escapeHtml(url)}</a>`);
+                    } else if (url) {
+                        contextInfo.push(`<strong>لینک منبع:</strong> ${escapeHtml(url)}`);
                     }
                 }
                 
@@ -1313,6 +1274,8 @@
                 const pageLevelBadge = pageLevel ? `
                     <span class="page-level-badge" title="این یک سند کامل صفحه است">📄 سند کامل صفحه</span>
                 ` : '';
+                
+                if (!documentText) return '';
                 
                 return `
                     <div class="result-document">
@@ -1323,9 +1286,8 @@
                             </div>
                         ` : ''}
                         <div class="document-content">
-                            ${escapeHtml(document)}
+                            ${escapeHtml(documentText)}
                         </div>
-                        ${sourceLinkHtml}
                     </div>
                 `;
             };
@@ -1472,7 +1434,6 @@
                             </div>
                         </div>
                         ${renderDocumentWithContext(result.document, result.metadata)}
-                        ${renderMetadata(result.metadata)}
                         <div class="vote-buttons">
                             <button class="vote-button like" data-result-id="${encodeURIComponent(result.id)}" data-model-id="${resultModelId ?? ''}" onclick="voteOnResult(this, 'like')">👍 مفید بود</button>
                             <button class="vote-button dislike" data-result-id="${encodeURIComponent(result.id)}" data-model-id="${resultModelId ?? ''}" onclick="voteOnResult(this, 'dislike')">👎 بی‌ارتباط</button>
