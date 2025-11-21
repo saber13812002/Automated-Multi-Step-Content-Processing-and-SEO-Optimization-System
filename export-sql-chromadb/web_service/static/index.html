@@ -1262,9 +1262,10 @@
                 `;
             }
             
-            // Add pagination controls if available
-            if (data.pagination) {
-                const pag = data.pagination;
+            // Helper function to generate pagination HTML
+            const generatePaginationHtml = (pag) => {
+                if (!pag) return '';
+                
                 let paginationHtml = '<div class="pagination-controls" style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">';
                 
                 // Previous button with validation
@@ -1304,7 +1305,12 @@
                 `;
                 
                 paginationHtml += '</div>';
-                html += paginationHtml;
+                return paginationHtml;
+            };
+            
+            // Add pagination controls at the top (after errors, before results)
+            if (data.pagination) {
+                html += generatePaginationHtml(data.pagination);
             }
 
             // Function to highlight search terms in text
@@ -1564,6 +1570,12 @@
                     </div>
                 `;
             });
+            
+            // Add pagination controls at the bottom (before vote section)
+            if (data.pagination) {
+                html += generatePaginationHtml(data.pagination);
+            }
+            
             html += renderVoteSection(voteTargets);
             html += '</div>';
             resultsContainer.innerHTML = html;
