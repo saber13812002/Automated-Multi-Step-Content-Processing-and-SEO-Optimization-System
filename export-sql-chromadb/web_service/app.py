@@ -720,15 +720,22 @@ async def search_documents(
                 estimated_total = "1000+"
                 has_next_page = True
             else:
-                # We got fewer than max, so this is the actual total
-                estimated_total = str(all_results_count)
                 # Check if there are more results beyond current page
                 # We fetched (page * page_size) + 1, so if we got more than current page end, there's a next page
                 current_page_end = payload.page * payload.page_size
                 has_next_page = all_results_count > current_page_end
                 
-                # Calculate total pages if we have exact count
-                if estimated_total and not estimated_total.startswith("1000+"):
+                # If we have a next page, we fetched exactly (page * page_size) + 1 results
+                # So we don't know the exact total, only that it's more than current_page_end
+                if has_next_page:
+                    # We don't know the exact total, only that it's more than current_page_end
+                    estimated_total = f"{current_page_end}+"
+                    # Don't set total_pages when we don't know exact count
+                    total_pages = None
+                else:
+                    # No next page, so all_results_count is the exact total
+                    estimated_total = str(all_results_count)
+                    # Calculate total pages if we have exact count
                     try:
                         total_pages = (int(estimated_total) + payload.page_size - 1) // payload.page_size
                     except (ValueError, TypeError):
