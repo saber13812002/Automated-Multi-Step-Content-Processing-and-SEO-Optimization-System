@@ -406,6 +406,50 @@ uvicorn web_service.app:app --host 0.0.0.0 --port 8080 2>&1 | grep -i error
 
 ---
 
+## ۸. قوانین توسعه و به‌روزرسانی
+
+### ⚠️ قانون مهم: همگام‌سازی تغییرات
+
+**هر تغییری که در وب سرویس اعمال می‌شود، باید در سه بخش به‌روز شود:**
+
+1. **Backend (کد Python)**
+   - فایل‌های `web_service/app.py`, `web_service/schemas.py`, `web_service/config.py`
+   - تغییرات در منطق، endpoint‌ها، validation، و response models
+
+2. **Frontend (رابط کاربری)**
+   - فایل `web_service/static/index.html`
+   - تغییرات در UI، JavaScript، و نحوه نمایش نتایج
+
+3. **مستندات API**
+   - فایل `API_DOCUMENTATION.md`
+   - به‌روزرسانی endpoint‌ها، request/response models، مثال‌ها، و توضیحات
+
+### چک‌لیست قبل از commit:
+
+- [ ] تغییرات در backend اعمال شده است
+- [ ] تغییرات در frontend (در صورت نیاز) اعمال شده است
+- [ ] مستندات API به‌روز شده است
+- [ ] مثال‌های curl/HTTP در مستندات به‌روز شده است
+- [ ] Schema changes در `schemas.py` منعکس شده است
+- [ ] Response examples در مستندات صحیح است
+
+### مثال‌های تغییراتی که نیاز به به‌روزرسانی دارند:
+
+- **اضافه کردن endpoint جدید:** باید در `API_DOCUMENTATION.md` اضافه شود
+- **تغییر در request/response schema:** باید در `schemas.py` و `API_DOCUMENTATION.md` به‌روز شود
+- **تغییر در UI/UX:** باید در `index.html` و در صورت نیاز در مستندات توضیح داده شود
+- **اضافه کردن feature flag:** باید در `config.py` و مستندات توضیح داده شود
+- **تغییر در pagination logic:** باید در frontend و backend همگام باشد و در مستندات توضیح داده شود
+
+### نکات مهم:
+
+- **همیشه** قبل از commit، مستندات را بررسی کنید
+- اگر تغییری در API contract ایجاد می‌کنید، حتماً versioning را در نظر بگیرید
+- برای تغییرات breaking، یک بخش "Migration Guide" در مستندات اضافه کنید
+- مثال‌های کد در مستندات باید **قابل اجرا** و **به‌روز** باشند
+
+---
+
 با انجام مراحل بالا، سرویس آماده پذیرش کوئری‌های معنایی و ارسال نتایج به صورت JSON خواهد بود. در صورت نیاز به سفارشی‌سازی بیشتر (مثلاً اضافه کردن مبدأ CORS، احراز هویت یا کش نتایج)، می‌توانید فایل‌های موجود در `web_service/` را توسعه دهید.
 
 

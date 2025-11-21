@@ -143,6 +143,18 @@ python list_openai_embeddings.py --include-db-info
 
 ## نکات تکمیلی
 
+### ⚠️ قوانین توسعه: همگام‌سازی تغییرات
+
+**قانون مهم:** هر تغییری که در وب سرویس اعمال می‌شود، باید در سه بخش به‌روز شود:
+
+1. **Backend (کد Python)** - `web_service/app.py`, `web_service/schemas.py`
+2. **Frontend (رابط کاربری)** - `web_service/static/index.html`
+3. **مستندات API** - `API_DOCUMENTATION.md`
+
+برای جزئیات کامل، به بخش "قوانین توسعه و به‌روزرسانی" در [README.web_service.md](README.web_service.md) و بخش "قوانین به‌روزرسانی مستندات API" در [API_DOCUMENTATION.md](API_DOCUMENTATION.md) مراجعه کنید.
+
+---
+
 - در متادیتا، لینک اصلی صفحه (`source_link`) ذخیره می‌شود تا ارجاع به منبع حفظ گردد.
 - فیلد `error` از فایل SQL نیز منتقل می‌شود تا در صورت وجود خطا یا هشدار در منبع بتوانید آن را ردیابی کنید.
 - در صورت نیاز به قطعه‌بندی متفاوت، پارامترهای `--max-length` و `--context` را تغییر دهید.
