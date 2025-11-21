@@ -257,6 +257,35 @@
             word-wrap: break-word;
         }
 
+        .highlight {
+            background-color: #ffeb3b;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .search-warning {
+            margin-top: 10px;
+            padding: 12px 16px;
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 6px;
+            color: #856404;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .search-warning.show {
+            display: block;
+        }
+
+        .search-warning.error {
+            background-color: #f8d7da;
+            border-color: #dc3545;
+            color: #721c24;
+        }
+
         .document-source-link {
             margin-top: 12px;
             padding-top: 12px;
@@ -679,6 +708,9 @@
                         placeholder="متن مورد نظر خود را وارد کنید..."
                         required
                     >
+                    <div class="search-warning" id="searchWarning">
+                        ⚠️ برای نتایج بهتر، لطفاً بیش از یک کلمه وارد کنید. جستجوی تک‌کلمه‌ای ممکن است نتایج دقیق‌تری ارائه ندهد.
+                    </div>
                 </div>
                 <div class="search-input-group" style="flex: 0 0 auto;">
                     <label for="topK">تعداد نتایج:</label>
@@ -825,6 +857,36 @@
         let currentPage = 1;
         let currentQuery = '';
         let currentTopK = 20;
+
+        // Function to check query word count and show/hide warning
+        function checkQueryWordCount() {
+            const queryInput = document.getElementById('query');
+            const warningDiv = document.getElementById('searchWarning');
+            if (!queryInput || !warningDiv) return;
+            
+            const query = queryInput.value.trim();
+            const words = query.split(/\s+/).filter(word => word.length > 0);
+            const wordCount = words.length;
+            
+            if (wordCount === 1 && query.length > 0) {
+                warningDiv.classList.add('show');
+                // Keep as warning (orange), not error (red)
+            } else if (wordCount === 0) {
+                warningDiv.classList.remove('show');
+            } else {
+                warningDiv.classList.remove('show');
+            }
+        }
+
+        // Add event listener to query input for real-time warning
+        const queryInput = document.getElementById('query');
+        if (queryInput) {
+            queryInput.addEventListener('input', checkQueryWordCount);
+            queryInput.addEventListener('keyup', checkQueryWordCount);
+            queryInput.addEventListener('paste', () => {
+                setTimeout(checkQueryWordCount, 10);
+            });
+        }
 
         searchForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -1221,7 +1283,40 @@
                 html += paginationHtml;
             }
 
-            const renderDocumentWithContext = (document, metadata) => {
+            // Function to highlight search terms in text
+            const highlightSearchTerms = (text, searchQuery) => {
+                if (!text || !searchQuery) return escapeHtml(text);
+                
+                // Escape the text first
+                let escapedText = escapeHtml(text);
+                
+                // Split search query into words (handling Persian and English)
+                const words = searchQuery.trim().split(/\s+/).filter(word => word.length > 0);
+                
+                if (words.length === 0) return escapedText;
+                
+                // Create a regex pattern that matches each word (case-insensitive, word boundaries)
+                // For Persian text, we don't use word boundaries as they don't work well
+                const patterns = words.map(word => {
+                    // Escape special regex characters
+                    const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    // Use word boundary for English, but not for Persian (which uses different characters)
+                    const isPersian = /[\u0600-\u06FF]/.test(word);
+                    if (isPersian) {
+                        return escapedWord;
+                    } else {
+                        return `\\b${escapedWord}\\b`;
+                    }
+                });
+                
+                // Combine patterns with OR
+                const combinedPattern = new RegExp(`(${patterns.join('|')})`, 'gi');
+                
+                // Replace matches with highlighted version
+                return escapedText.replace(combinedPattern, '<span class="highlight">$1</span>');
+            };
+
+            const renderDocumentWithContext = (document, metadata, searchQuery = '') => {
                 const meta = metadata || {};
                 const bookTitle = meta.book_title || '';
                 const sectionTitle = meta.section_title || '';
@@ -1277,6 +1372,9 @@
                 
                 if (!documentText) return '';
                 
+                // Highlight search terms in document text
+                const highlightedText = highlightSearchTerms(documentText, searchQuery);
+                
                 return `
                     <div class="result-document">
                         ${contextInfo.length > 0 ? `
@@ -1286,7 +1384,7 @@
                             </div>
                         ` : ''}
                         <div class="document-content">
-                            ${escapeHtml(documentText)}
+                            ${highlightedText}
                         </div>
                     </div>
                 `;
@@ -1433,7 +1531,7 @@
                                 ` : ''}
                             </div>
                         </div>
-                        ${renderDocumentWithContext(result.document, result.metadata)}
+                        ${renderDocumentWithContext(result.document, result.metadata, data.query || '')}
                         <div class="vote-buttons">
                             <button class="vote-button like" data-result-id="${encodeURIComponent(result.id)}" data-model-id="${resultModelId ?? ''}" onclick="voteOnResult(this, 'like')">👍 مفید بود</button>
                             <button class="vote-button dislike" data-result-id="${encodeURIComponent(result.id)}" data-model-id="${resultModelId ?? ''}" onclick="voteOnResult(this, 'dislike')">👎 بی‌ارتباط</button>
