@@ -65,6 +65,7 @@ from .database import (
     update_query_search_count,
 )
 from .logging_setup import configure_logging
+from .version import get_version
 from .schemas import (
     ChromaCollectionInfo,
     ChromaCollectionsResponse,
@@ -234,7 +235,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Chroma Search Service",
-    version="1.0.0",
+    version=get_version(),
     description="""
     سرویس وب FastAPI برای جستجوی معنایی در ChromaDB.
     
@@ -299,7 +300,13 @@ if static_dir.exists():
         index_path = static_dir / "index.html"
         if index_path.exists():
             return FileResponse(index_path)
-        return {"message": "Chroma Search API", "docs": "/docs", "health": "/health"}
+        return {"message": "Chroma Search API", "docs": "/docs", "health": "/health", "version": get_version()}
+
+
+@app.get("/version", tags=["health"])
+async def get_version_endpoint():
+    """Get the current version of the API."""
+    return {"version": get_version()}
 
 
 def get_app_state(request: Request) -> Dict[str, Any]:
@@ -2023,6 +2030,9 @@ async def healthcheck(request: Request, app_state: Dict[str, Any] = Depends(get_
     collection_component = HealthComponent(status="ok")
     redis_component = HealthComponent(status="ok")
     overall_status = "ok"
+    
+    # Add version to response
+    version = get_version()
 
     # Chroma heartbeat
     try:
@@ -2064,12 +2074,18 @@ async def healthcheck(request: Request, app_state: Dict[str, Any] = Depends(get_
         redis_component.detail = str(exc)
         overall_status = "degraded"
 
-    return HealthResponse(
+    response = HealthResponse(
         status=overall_status,
         chroma=chroma_component,
         collection=collection_component,
         redis=redis_component,
     )
+    # Add version to response extras
+    if response.redis.extras:
+        response.redis.extras["version"] = version
+    else:
+        response.redis.extras = {"version": version}
+    return response
 
 
 async def verify_api_token(

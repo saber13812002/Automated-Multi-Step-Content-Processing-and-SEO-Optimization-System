@@ -662,6 +662,7 @@
         <div class="header">
             <h1>🔍 جستجوی معنایی ChromaDB</h1>
             <p>جستجوی هوشمند در مجموعه اسناد</p>
+            <div style="margin-top: 10px; font-size: 0.9rem; opacity: 0.8;" id="versionTop">نسخه: <span id="versionNumber">در حال بارگذاری...</span></div>
             <div class="config-info" id="configInfo" style="display: none;">
                 <span class="config-info-item">
                     <span class="config-info-label">کالکشن:</span>
@@ -1756,7 +1757,35 @@
         // Load approved queries on page load
         loadApprovedQueries();
 
+        // Load version on page load
+        async function loadVersion() {
+            try {
+                const response = await fetch('/version', {
+                    headers: { 'Accept': 'application/json; charset=utf-8' }
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const versionEl = document.getElementById('versionNumber');
+                    const versionBottomEl = document.getElementById('versionNumberBottom');
+                    if (versionEl) versionEl.textContent = data.version || '0.1.0';
+                    if (versionBottomEl) versionBottomEl.textContent = data.version || '0.1.0';
+                }
+            } catch (error) {
+                console.warn('Failed to load version:', error);
+                const versionEl = document.getElementById('versionNumber');
+                const versionBottomEl = document.getElementById('versionNumberBottom');
+                if (versionEl) versionEl.textContent = '0.1.0';
+                if (versionBottomEl) versionBottomEl.textContent = '0.1.0';
+            }
+        }
+
+        // Load version when page loads
+        loadVersion();
+
     </script>
+    <footer style="text-align: center; padding: 20px; color: white; opacity: 0.8; font-size: 0.9rem; margin-top: 30px;">
+        نسخه: <span id="versionNumberBottom">در حال بارگذاری...</span>
+    </footer>
 </body>
 </html>
 
