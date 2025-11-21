@@ -1161,10 +1161,22 @@
         }
         
         function goToPage(page) {
+            // Validate page number
+            if (page < 1) {
+                console.warn('Page number must be at least 1');
+                return;
+            }
+            // Prevent going to pages that are too large (safety check)
+            if (page > 1000) {
+                console.warn('Page number is too large');
+                return;
+            }
             if (currentQuery) {
                 const useCache = document.getElementById('useCache').checked;
                 const includeFullContext = document.getElementById('includeFullContext').checked;
                 performSearch(currentQuery, currentTopK, page, useCache, includeFullContext);
+            } else {
+                console.warn('No current query available');
             }
         }
 
@@ -1217,7 +1229,10 @@
                         <h2>نتایج جستجو</h2>
                         <div class="results-meta">
                             کوئری: "<strong>${escapeHtml(data.query)}</strong>" | 
-                            نمایش ${data.returned} ${data.top_k ? `از ${data.top_k}` : ''} نتیجه | 
+                            ${data.pagination ? 
+                                `نمایش ${data.returned} نتیجه از صفحه ${data.pagination.page}${data.pagination.total_pages ? ` از ${data.pagination.total_pages}` : ''}${data.pagination.estimated_total_results ? ` (کل: ${data.pagination.estimated_total_results} نتیجه)` : ''}` :
+                                `نمایش ${data.returned} ${data.top_k ? `از ${data.top_k}` : ''} نتیجه`
+                            } | 
                             زمان اجرا: ${data.took_ms.toFixed(2)} میلی‌ثانیه${cacheLabel}
                             ${data.total_documents ? ` | کل مستندات: ${data.total_documents.toLocaleString('fa-IR')}` : ''}
                         </div>
@@ -1248,32 +1263,37 @@
                 const pag = data.pagination;
                 let paginationHtml = '<div class="pagination-controls" style="margin: 20px 0; padding: 15px; background: #f5f5f5; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">';
                 
-                // Previous button
+                // Previous button with validation
+                const prevPage = Math.max(1, pag.page - 1);
+                const prevButtonDisabled = !pag.has_previous_page || pag.page <= 1;
                 paginationHtml += `
                     <button 
                         class="pagination-button" 
-                        onclick="goToPage(${pag.page - 1})"
-                        ${!pag.has_previous_page ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;"'}
+                        onclick="${prevButtonDisabled ? 'return false;' : `goToPage(${prevPage})`}"
+                        ${prevButtonDisabled ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;"'}
                     >
                         صفحه قبلی
                     </button>
                 `;
                 
-                // Page info
+                // Page info with better formatting
                 let pageInfo = `صفحه ${pag.page}`;
                 if (pag.total_pages) {
                     pageInfo += ` از ${pag.total_pages}`;
-                } else if (pag.estimated_total_results) {
+                }
+                if (pag.estimated_total_results) {
                     pageInfo += ` (${pag.estimated_total_results} نتیجه)`;
                 }
                 paginationHtml += `<span style="font-weight: 600; color: #333;">${pageInfo}</span>`;
                 
-                // Next button
+                // Next button with validation
+                const nextPage = pag.page + 1;
+                const nextButtonDisabled = !pag.has_next_page;
                 paginationHtml += `
                     <button 
                         class="pagination-button" 
-                        onclick="goToPage(${pag.page + 1})"
-                        ${!pag.has_next_page ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;"'}
+                        onclick="${nextButtonDisabled ? 'return false;' : `goToPage(${nextPage})`}"
+                        ${nextButtonDisabled ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : 'style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;"'}
                     >
                         صفحه بعدی
                     </button>

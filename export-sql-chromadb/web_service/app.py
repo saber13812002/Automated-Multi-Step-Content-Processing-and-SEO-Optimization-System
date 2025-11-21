@@ -510,10 +510,11 @@ async def search_documents(
     
     # Calculate n_results based on pagination
     # For pagination, we need to fetch enough results for the current page
-    # If pagination is enabled, fetch enough for current page + some buffer for estimation
+    # If pagination is enabled, fetch enough for current page + 1 extra to detect next page
     if settings.enable_pagination:
-        # Fetch enough results for current page, but cap at max_estimated_results
-        n_results = min((payload.page * payload.page_size), settings.max_estimated_results)
+        # Fetch at least (page * page_size) + 1 results to determine if next page exists
+        # This extra result helps us know if there are more results beyond current page
+        n_results = min((payload.page * payload.page_size) + 1, settings.max_estimated_results)
         # Ensure we fetch at least page_size results
         n_results = max(n_results, payload.page_size)
     else:
@@ -593,6 +594,9 @@ async def search_documents(
     distances = results.get("distances", [[]])[0]
     documents = results.get("documents", [[]])[0]
     metadatas = results.get("metadatas", [[]])[0]
+
+    # Store total count of fetched results BEFORE pagination slicing
+    all_results_count = len(ids) if ids else 0
 
     # Apply pagination to results if enabled
     if settings.enable_pagination:
@@ -705,28 +709,35 @@ async def search_documents(
     # Calculate pagination info if enabled
     pagination = None
     if settings.enable_pagination:
-        # Check if we got max results (might be more)
-        all_results_count = len(results.get("ids", [[]])[0])
+        # all_results_count was already calculated before pagination slicing
         estimated_total = None
         has_next_page = False
         total_pages = None
 
         if settings.enable_estimated_results:
             if all_results_count >= settings.max_estimated_results:
+                # We hit the max limit, so there might be more results
                 estimated_total = "1000+"
                 has_next_page = True
             else:
+                # We got fewer than max, so this is the actual total
                 estimated_total = str(all_results_count)
-                # Check if there are more results on next page
-                has_next_page = (payload.page * payload.page_size) < all_results_count
+                # Check if there are more results beyond current page
+                # We fetched (page * page_size) + 1, so if we got more than current page end, there's a next page
+                current_page_end = payload.page * payload.page_size
+                has_next_page = all_results_count > current_page_end
+                
+                # Calculate total pages if we have exact count
                 if estimated_total and not estimated_total.startswith("1000+"):
                     try:
                         total_pages = (int(estimated_total) + payload.page_size - 1) // payload.page_size
                     except (ValueError, TypeError):
                         pass
         else:
-            # Without estimation, just check if we have a full page
-            has_next_page = len(response_items) == payload.page_size
+            # Without estimation, check if we got more results than current page needs
+            # We fetch (page * page_size) + 1, so if we got more than current page end, there's a next page
+            current_page_end = payload.page * payload.page_size
+            has_next_page = all_results_count > current_page_end
 
         pagination = PaginationInfo(
             page=payload.page,
