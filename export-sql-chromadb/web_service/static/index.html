@@ -910,6 +910,7 @@
             const url = new URL(window.location);
             url.searchParams.set('q', query);
             url.searchParams.set('page', '1');
+            url.searchParams.set('topK', topK.toString());
             window.history.pushState({}, '', url);
 
             await performSearch(query, topK, 1, useCache, includeFullContext);
@@ -920,11 +921,13 @@
             const urlParams = new URLSearchParams(window.location.search);
             const query = urlParams.get('q');
             const page = parseInt(urlParams.get('page')) || 1;
+            const topK = parseInt(urlParams.get('topK')) || parseInt(document.getElementById('topK').value) || 20;
             if (query) {
                 document.getElementById('query').value = query;
+                document.getElementById('topK').value = topK;
                 currentQuery = query;
                 currentPage = page;
-                currentTopK = parseInt(document.getElementById('topK').value) || 20;
+                currentTopK = topK;
                 performSearch(query, currentTopK, page);
             }
             historySection.style.display = 'block';
@@ -1097,7 +1100,7 @@
                         query,
                         top_k: topK,
                         page,
-                        page_size: 20,
+                        page_size: topK,  // Use topK as page_size so user's selection is respected
                         save: true,
                         use_cache: useCache,
                         include_full_context: includeFullContext,
@@ -1137,6 +1140,7 @@
                 const url = new URL(window.location);
                 url.searchParams.set('q', query);
                 url.searchParams.set('page', currentPage.toString());
+                url.searchParams.set('topK', currentTopK.toString());
                 window.history.pushState({}, '', url);
                 
                 // Update config info in header
