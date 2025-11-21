@@ -1021,6 +1021,12 @@
         });
 
         function renderModelChips() {
+            // Hide model selector for now
+            modelSelector.style.display = 'none';
+            return;
+            
+            // Commented out - model selector is hidden
+            /*
             if (!activeModels || activeModels.length === 0) {
                 modelSelector.style.display = 'none';
                 return;
@@ -1043,6 +1049,7 @@
                 `;
             });
             modelChipsContainer.innerHTML = html;
+            */
         }
 
         window.toggleModelChip = function(modelId) {
@@ -1143,6 +1150,14 @@
                 url.searchParams.set('topK', currentTopK.toString());
                 window.history.pushState({}, '', url);
                 
+                // Scroll to top after pagination (when pagination is used, for both next and previous pages)
+                if (data.pagination) {
+                    // Use setTimeout to ensure DOM is updated before scrolling
+                    setTimeout(() => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }, 100);
+                }
+                
                 // Update config info in header
                 if (!isMulti && data.collection) {
                     document.getElementById('collectionName').textContent = data.collection;
@@ -1179,6 +1194,7 @@
                 const useCache = document.getElementById('useCache').checked;
                 const includeFullContext = document.getElementById('includeFullContext').checked;
                 performSearch(currentQuery, currentTopK, page, useCache, includeFullContext);
+                // Scroll will happen after results are displayed in performSearch
             } else {
                 console.warn('No current query available');
             }
