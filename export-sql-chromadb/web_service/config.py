@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     embedding_provider: str = Field(default="openai", alias="EMBEDDING_PROVIDER")
     embedding_model: str = Field(default="text-embedding-3-small", alias="EMBEDDING_MODEL")
     openai_api_key: str = Field(default="", alias="OPENAI_API_KEY")
+    gemini_api_key: str = Field(default="", alias="GEMINI_API_KEY")
 
     redis_url: Optional[str] = Field(default=None, alias="REDIS_URL")
     redis_host: str = Field(default="localhost", alias="REDIS_HOST")
@@ -94,9 +95,9 @@ class Settings(BaseSettings):
     @classmethod
     def _validate_provider(cls, value: str) -> str:
         normalized = value.lower()
-        if normalized not in {"openai"}:
+        if normalized not in {"openai", "huggingface", "gemini", "none"}:
             raise ValueError(
-                "Unsupported EMBEDDING_PROVIDER. Only 'openai' is currently supported."
+                f"Unsupported EMBEDDING_PROVIDER: {normalized}. Supported: openai, huggingface, gemini, none"
             )
         return normalized
 

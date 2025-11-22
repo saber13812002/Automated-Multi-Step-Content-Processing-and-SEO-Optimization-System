@@ -429,6 +429,7 @@ async def search_documents(
             model=model_info["embedding_model"],
             api_key=settings.openai_api_key,
             device="",
+            gemini_api_key=settings.gemini_api_key,
         )
         
         # Use model-specific provider and model for cache key
@@ -977,6 +978,7 @@ async def multi_model_search(
                     model=model_info["embedding_model"],
                     api_key=settings.openai_api_key,
                     device="",  # Auto-detect device for HuggingFace
+                    gemini_api_key=settings.gemini_api_key,
                 )
                 # Generate embeddings with model-specific embedder
                 query_embeddings = await anyio.to_thread.run_sync(

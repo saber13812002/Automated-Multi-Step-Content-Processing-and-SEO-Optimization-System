@@ -47,6 +47,13 @@ except ImportError:
     torch = None  # type: ignore
     np = None  # type: ignore
 
+try:
+    from google import genai
+    GOOGLE_GENAI_AVAILABLE = True
+except ImportError:
+    GOOGLE_GENAI_AVAILABLE = False
+    genai = None  # type: ignore
+
 
 SQL_INSERT_PREFIX = "INSERT INTO `book_pages` VALUES "
 
@@ -620,8 +627,92 @@ class HuggingFaceEmbedder:
         return embeddings_list
 
 
+class GeminiEmbedder:
+    """Custom embedding function for Gemini models like gemini-embedding-001, gemini-2.5-flash, etc."""
+    
+    def __init__(self, model_name: str, api_key: str):
+        if not GOOGLE_GENAI_AVAILABLE:
+            raise RuntimeError(
+                "google-genai library is required for Gemini embeddings. "
+                "Install it with: pip install google-genai"
+            )
+        
+        if not api_key:
+            raise RuntimeError("GEMINI_API_KEY is required for Gemini embeddings.")
+        
+        self.model_name = model_name
+        self.api_key = api_key
+        
+        print(f"🔄 در حال اتصال به Gemini API: {model_name}...", flush=True)
+        try:
+            self.client = genai.Client(api_key=api_key)
+            print(f"✅ اتصال به Gemini API برقرار شد", flush=True)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to initialize Gemini client: {exc}") from exc
+    
+    def __call__(self, texts: Sequence[str]) -> List[List[float]]:
+        """Generate embeddings for a batch of texts."""
+        if not texts:
+            return []
+        
+        try:
+            # Use generate_embeddings method from Gemini API
+            response = self.client.models.generate_embeddings(
+                model=self.model_name,
+                contents=list(texts)
+            )
+            
+            # Extract embeddings from response
+            # Response structure may vary: response.embeddings is a list of embedding objects
+            # Each embedding object may have 'values', 'embedding', or be a list/dict directly
+            embeddings_list = []
+            if hasattr(response, 'embeddings'):
+                embeddings = response.embeddings
+            elif isinstance(response, list):
+                embeddings = response
+            elif isinstance(response, dict) and 'embeddings' in response:
+                embeddings = response['embeddings']
+            else:
+                embeddings = [response]
+            
+            for embedding in embeddings:
+                if isinstance(embedding, list):
+                    embeddings_list.append(embedding)
+                elif isinstance(embedding, dict):
+                    # Try common keys
+                    if 'values' in embedding:
+                        embeddings_list.append(embedding['values'])
+                    elif 'embedding' in embedding:
+                        embeddings_list.append(embedding['embedding'])
+                    else:
+                        # Use first list-like value found
+                        for val in embedding.values():
+                            if isinstance(val, list):
+                                embeddings_list.append(val)
+                                break
+                elif hasattr(embedding, 'values'):
+                    embeddings_list.append(embedding.values)
+                elif hasattr(embedding, 'embedding'):
+                    embeddings_list.append(embedding.embedding)
+                else:
+                    # Last resort: try to convert to list
+                    try:
+                        embeddings_list.append(list(embedding))
+                    except (TypeError, ValueError):
+                        raise RuntimeError(f"Unable to extract embedding from response: {type(embedding)}")
+            
+            if len(embeddings_list) != len(texts):
+                raise RuntimeError(
+                    f"Expected {len(texts)} embeddings, but got {len(embeddings_list)}"
+                )
+            
+            return embeddings_list
+        except Exception as exc:
+            raise RuntimeError(f"Failed to generate Gemini embeddings: {exc}") from exc
+
+
 class EmbeddingProvider:
-    def __init__(self, provider: str, model: str, api_key: Optional[str], device: Optional[str] = None) -> None:
+    def __init__(self, provider: str, model: str, api_key: Optional[str], device: Optional[str] = None, gemini_api_key: Optional[str] = None) -> None:
         self.provider = provider
         self.model = model
         self.api_key = api_key
@@ -639,10 +730,12 @@ class EmbeddingProvider:
             )
         elif provider == "huggingface":
             self.embedding_function = HuggingFaceEmbedder(model_name=model, device=device)
+        elif provider == "gemini":
+            self.embedding_function = GeminiEmbedder(model_name=model, api_key=gemini_api_key or "")
         elif provider == "none":
             self.embedding_function = None
         else:
-            raise ValueError(f"Unsupported embedding provider: {provider}. Supported: openai, huggingface, none")
+            raise ValueError(f"Unsupported embedding provider: {provider}. Supported: openai, huggingface, gemini, none")
 
     def embed(self, texts: Sequence[str]) -> Optional[Sequence[Sequence[float]]]:
         if not texts:
@@ -757,11 +850,17 @@ def export_to_chroma(args: argparse.Namespace, job_id: Optional[int] = None) -> 
     if device and not device.strip():
         device = None
     
+    # Get Gemini API key if provider is gemini
+    gemini_api_key = getattr(args, 'gemini_api_key', None)
+    if gemini_api_key and not gemini_api_key.strip():
+        gemini_api_key = None
+    
     embedding_provider = EmbeddingProvider(
         provider=args.embedding_provider,
         model=args.embedding_model,
         api_key=args.openai_api_key,
         device=device,
+        gemini_api_key=gemini_api_key,
     )
 
     processed_records = 0
@@ -947,9 +1046,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--embedding-provider",
-        choices=["openai", "huggingface", "none"],
+        choices=["openai", "huggingface", "gemini", "none"],
         default=os.getenv("EMBEDDING_PROVIDER", "openai"),
-        help="Embedding backend to use for generating vectors. Options: openai, huggingface, none",
+        help="Embedding backend to use for generating vectors. Options: openai, huggingface, gemini, none",
     )
     parser.add_argument(
         "--embedding-model",
@@ -958,13 +1057,19 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
             "Embedding model identifier. "
             "For OpenAI: e.g., 'text-embedding-3-small', 'text-embedding-3-large'. "
             "For HuggingFace: e.g., 'HooshvareLab/bert-base-parsbert-uncased' (ParsBERT), "
-            "'aubmindlab/bert-base-arabertv2' (AraBERT), or any other HuggingFace model."
+            "'aubmindlab/bert-base-arabertv2' (AraBERT), or any other HuggingFace model. "
+            "For Gemini: e.g., 'gemini-embedding-001', 'gemini-2.5-flash', or future Gemini 3 embedding models."
         ),
     )
     parser.add_argument(
         "--openai-api-key",
         default=os.getenv("OPENAI_API_KEY", ""),
         help="OpenAI API key. Overrides environment variable if provided. Required for OpenAI provider.",
+    )
+    parser.add_argument(
+        "--gemini-api-key",
+        default=os.getenv("GEMINI_API_KEY", ""),
+        help="Gemini API key. Overrides environment variable if provided. Required for Gemini provider.",
     )
     parser.add_argument(
         "--device",
