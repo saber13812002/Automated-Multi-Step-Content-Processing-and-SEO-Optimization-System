@@ -423,19 +423,22 @@ async def search_documents(
                 detail=f"عدم دسترسی به کالکشن {collection_name}: {exc}",
             ) from exc
         
-        # Create embedder for this specific model
-        embedder = create_embedder_for_model(
-            provider=model_info["embedding_provider"],
-            model=model_info["embedding_model"],
-            api_key=settings.openai_api_key,
-            device="",
-            gemini_api_key=settings.gemini_api_key,
-        )
-        
-        # Use model-specific provider and model for cache key
+        # Create embedder for this specific model - MUST use the same provider/model as the collection
         actual_provider = model_info["embedding_provider"]
         actual_model = model_info["embedding_model"]
         actual_collection = collection_name
+        
+        # Ensure we use the correct API key based on provider
+        api_key = settings.openai_api_key if actual_provider == "openai" else ""
+        gemini_api_key = settings.gemini_api_key if actual_provider == "gemini" else ""
+        
+        embedder = create_embedder_for_model(
+            provider=actual_provider,
+            model=actual_model,
+            api_key=api_key,
+            device="",
+            gemini_api_key=gemini_api_key,
+        )
         
         logger.info(
             "Using model-specific collection and embedder",
@@ -444,8 +447,22 @@ async def search_documents(
                 "collection": collection_name,
                 "provider": actual_provider,
                 "model": actual_model,
+                "embedder_provider": embedder.provider,
+                "embedder_model": embedder.model,
             },
         )
+        
+        # Validate that embedder matches model info
+        if embedder.provider != actual_provider or embedder.model != actual_model:
+            error_msg = (
+                f"❌ Embedder mismatch! Expected {actual_provider}/{actual_model}, "
+                f"but got {embedder.provider}/{embedder.model}"
+            )
+            logger.error(error_msg)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=error_msg,
+            )
     else:
         # Use default collection and embedder
         collection = app_state["collection"]
@@ -931,14 +948,16 @@ async def multi_model_search(
         try:
             collection = chroma_client.get_collection(collection_name)
             
+            # Get model provider and model info for this collection
+            query_provider = model_info["embedding_provider"]
+            query_model = model_info["embedding_model"]
+            
             # Validate that query embedding model matches collection's export model
             try:
                 collection_metadata = await anyio.to_thread.run_sync(lambda: collection.metadata)
                 if collection_metadata and isinstance(collection_metadata, dict):
                     export_provider = collection_metadata.get("embedding_provider")
                     export_model = collection_metadata.get("embedding_model")
-                    query_provider = model_info["embedding_provider"]
-                    query_model = model_info["embedding_model"]
                     if export_provider and export_model:
                         if export_provider != query_provider or export_model != query_model:
                             warning_msg = (
@@ -971,15 +990,27 @@ async def multi_model_search(
             continue  # Skip this model and continue with others
 
         try:
-            # Create embedder for this specific model
+            # Create embedder for this specific model - MUST use the same provider/model as the collection
+            
+            # Ensure we use the correct API key based on provider
+            api_key = settings.openai_api_key if query_provider == "openai" else ""
+            gemini_api_key = settings.gemini_api_key if query_provider == "gemini" else ""
+            
             try:
                 embedder = create_embedder_for_model(
-                    provider=model_info["embedding_provider"],
-                    model=model_info["embedding_model"],
-                    api_key=settings.openai_api_key,
+                    provider=query_provider,
+                    model=query_model,
+                    api_key=api_key,
                     device="",  # Auto-detect device for HuggingFace
-                    gemini_api_key=settings.gemini_api_key,
+                    gemini_api_key=gemini_api_key,
                 )
+                
+                # Validate that embedder matches model info
+                if embedder.provider != query_provider or embedder.model != query_model:
+                    raise RuntimeError(
+                        f"Embedder mismatch! Expected {query_provider}/{query_model}, "
+                        f"but got {embedder.provider}/{embedder.model}"
+                    )
                 # Generate embeddings with model-specific embedder
                 query_embeddings = await anyio.to_thread.run_sync(
                     embedder.embed, [payload.query]
@@ -996,10 +1027,12 @@ async def multi_model_search(
                 )
                 results = await anyio.to_thread.run_sync(query_func)
                 logger.debug(
-                    "✅ Query embedded and searched for model %s/%s in collection '%s'",
-                    model_info["embedding_provider"],
-                    model_info["embedding_model"],
+                    "✅ Query embedded and searched for model %s/%s in collection '%s' (embedder: %s/%s)",
+                    query_provider,
+                    query_model,
                     collection_name,
+                    embedder.provider,
+                    embedder.model,
                 )
             except Exception as embed_exc:
                 # Fallback: try query_texts if collection has embedding function
