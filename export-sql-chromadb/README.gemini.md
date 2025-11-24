@@ -9,6 +9,7 @@
 - [تست OpenAI (اطمینان از خراب نشدن)](#تست-openai-اطمینان-از-خراب-نشدن)
 - [استفاده در Export](#استفاده-در-export)
 - [استفاده در Search](#استفاده-در-search)
+- [تست اتصال Proxy بدون وابستگی اضافی](#تست-اتصال-proxy-بدون-وابستگی-اضافی)
 
 ---
 
@@ -135,6 +136,41 @@ curl -X POST http://localhost:8080/search \
 ```
 
 اگر `model_id` مشخص کنید، از همان مدل Gemini که export شده استفاده می‌کند.
+
+---
+
+## تست اتصال Proxy بدون وابستگی اضافی
+
+اگر پشت پراکسی هستید و می‌خواهید مطمئن شوید که اتصال به Google Gemini از سرور برقرار می‌شود، می‌توانید از اسکریپت استاندارد `test_proxy_google_api.py` استفاده کنید. این اسکریپت فقط از کتابخانه‌های داخلی پایتون استفاده می‌کند و نیاز به هیچ `pip install` اضافی ندارد.
+
+1. تنظیم متغیرها (اختیاری - می‌توانید با آرگومان هم بدهید):
+
+```bash
+export GEMINI_API_KEY=your_api_key_here
+export HTTPS_PROXY=http://user:pass@proxy-host:proxy-port
+python3 test_proxy_google_api.py
+```
+
+2. اجرای تست با آرگومان‌ها (بدون نیاز به export):
+
+```bash
+python3 test_proxy_google_api.py \
+  --api-key YOUR_GEMINI_API_KEY \
+  --proxy http://user:pass@proxy-host:proxy-port
+```
+
+3. فقط تست اتصال ساده بدون API Key:
+
+```bash
+python3 test_proxy_google_api.py --basic-only
+```
+
+خروجی اسکریپت شامل دو تست است:
+
+- **Test 1:** بررسی دسترسی ساده به google.com از طریق پراکسی
+- **Test 2:** فراخوانی endpoint مدل‌های Gemini (`embed_content`) برای اطمینان از اینکه API Key و پراکسی درست کار می‌کنند
+
+اگر پیغام `✅ Connection successful` دریافت کردید یعنی اتصال آماده استفاده در Export است. در صورت خطای `403` یا `407` جزئیات کامل برای عیب‌یابی چاپ می‌شود.
 
 ---
 
