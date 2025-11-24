@@ -110,7 +110,7 @@ class QueryEmbedder:
             embeddings = embeddings_tensor.cpu().numpy().tolist()
         elif self._provider == "gemini":
             try:
-                response = self.client.models.generate_embeddings(
+                response = self.client.models.embed_content(
                     model=self._model,
                     contents=list(texts)
                 )
@@ -243,7 +243,7 @@ class MultiModelEmbedder:
             return embeddings.cpu().numpy().tolist()
         elif self.provider == "gemini":
             try:
-                response = self.client.models.generate_embeddings(
+                response = self.client.models.embed_content(
                     model=self.model,
                     contents=list(texts)
                 )

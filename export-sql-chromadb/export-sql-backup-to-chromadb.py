@@ -656,8 +656,8 @@ class GeminiEmbedder:
             return []
         
         try:
-            # Use generate_embeddings method from Gemini API
-            response = self.client.models.generate_embeddings(
+            # Use embed_content method from Gemini API
+            response = self.client.models.embed_content(
                 model=self.model_name,
                 contents=list(texts)
             )

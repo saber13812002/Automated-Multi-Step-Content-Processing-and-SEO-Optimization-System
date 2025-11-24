@@ -42,7 +42,7 @@ python export-sql-backup-to-chromadb.py \
 
 ```bash
 export GEMINI_API_KEY=your_gemini_api_key_here
-python export-sql-backup-to-chromadb.py \
+python3 export-sql-backup-to-chromadb.py \
   --sql-path book_pages_mini.sql \
   --collection book_pages_mini_gemini \
   --host 192.168.1.68 \
