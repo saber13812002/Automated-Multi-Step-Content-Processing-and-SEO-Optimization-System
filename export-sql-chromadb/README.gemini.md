@@ -33,9 +33,14 @@ python export-sql-backup-to-chromadb.py \
   --port 8000 \
   --embedding-provider gemini \
   --embedding-model gemini-embedding-001 \
-  --gemini-api-key YOUR_GEMINI_API_KEY \
+  --gemini-api-key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx \
   --reset
 ```
+
+```bash
+python export-sql-backup-to-chromadb.py   --sql-path book_pages_mini.sql   --collection books_pages_mini_gemini   --host 192.168.1.68   --port 8000   --embedding-provider gemini   --embedding-model gemini-embedding-001  --gemini-api-key xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx   --reset
+```
+
 
 **نکته:** `YOUR_GEMINI_API_KEY` را با کلید API واقعی Gemini خود جایگزین کنید.
 

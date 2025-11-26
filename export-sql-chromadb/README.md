@@ -23,6 +23,7 @@
 - [HUGGINGFACE_MODELS.md](HUGGINGFACE_MODELS.md) - راهنمای استفاده از مدل‌های HuggingFace
 - [README.list_openai_embeddings.md](README.list_openai_embeddings.md) - راهنمای اسکریپت لیست کردن امبدینگ‌های OpenAI
 - [IMPROVEMENTS.md](IMPROVEMENTS.md) - پیشنهادات بهبود و بهینه‌سازی سیستم
+- [Readme.service.linux..md](Readme.service.linux..md) - راه‌اندازی سرویس روی لینوکس با systemd، آپدیت خودکار و مانیتورینگ
 
 ## پیش‌نیازها
 
