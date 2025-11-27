@@ -630,23 +630,65 @@ class HuggingFaceEmbedder:
 class GeminiEmbedder:
     """Custom embedding function for Gemini models like gemini-embedding-001, gemini-2.5-flash, etc."""
     
-    def __init__(self, model_name: str, api_key: str):
+    def __init__(
+        self,
+        model_name: str,
+        api_key: str,
+        *,
+        use_vertexai: bool = False,
+        google_project: Optional[str] = None,
+        google_location: Optional[str] = None,
+    ):
         if not GOOGLE_GENAI_AVAILABLE:
             raise RuntimeError(
                 "google-genai library is required for Gemini embeddings. "
                 "Install it with: pip install google-genai"
             )
-        
-        if not api_key:
-            raise RuntimeError("GEMINI_API_KEY is required for Gemini embeddings.")
-        
+
+        # Determine if Vertex AI should be used (env var overrides CLI)
+        env_use_vertex = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "")
+        if env_use_vertex:
+            use_vertexai = env_use_vertex.lower() in ("1", "true", "yes")
+
+        self.use_vertexai = use_vertexai
+        self.project = google_project or os.getenv("GOOGLE_CLOUD_PROJECT")
+        self.location = google_location or os.getenv("GOOGLE_CLOUD_LOCATION")
+        self.api_endpoint = "https://generativelanguage.googleapis.com"
         self.model_name = model_name
         self.api_key = api_key
         
         print(f"🔄 در حال اتصال به Gemini API: {model_name}...", flush=True)
         try:
-            self.client = genai.Client(api_key=api_key)
-            print(f"✅ اتصال به Gemini API برقرار شد", flush=True)
+            if self.use_vertexai:
+                if not self.project:
+                    raise RuntimeError(
+                        "GOOGLE_CLOUD_PROJECT is required when using Vertex AI for Gemini."
+                    )
+                if not self.location:
+                    raise RuntimeError(
+                        "GOOGLE_CLOUD_LOCATION is required when using Vertex AI for Gemini."
+                    )
+                self.api_endpoint = f"https://{self.location}-aiplatform.googleapis.com"
+                self.client = genai.Client(
+                    vertexai=True,
+                    project=self.project,
+                    location=self.location,
+                )
+            else:
+                if not api_key:
+                    raise RuntimeError("GEMINI_API_KEY is required for Gemini embeddings.")
+                self.api_endpoint = "https://generativelanguage.googleapis.com"
+                self.client = genai.Client(api_key=api_key)
+            if self.use_vertexai:
+                print(
+                    f"✅ اتصال به Gemini API (Vertex AI) برقرار شد | پروژه: {self.project} | منطقه: {self.location} | Endpoint: {self.api_endpoint}",
+                    flush=True,
+                )
+            else:
+                print(
+                    f"✅ اتصال به Gemini API (Developer) برقرار شد | Endpoint: {self.api_endpoint}",
+                    flush=True,
+                )
         except Exception as exc:
             raise RuntimeError(f"Failed to initialize Gemini client: {exc}") from exc
     
@@ -655,6 +697,16 @@ class GeminiEmbedder:
         if not texts:
             return []
         
+        if self.use_vertexai:
+            api_url = (
+                f"{self.api_endpoint}/v1/projects/{self.project}/locations/"
+                f"{self.location}/publishers/google/models/{self.model_name}:embedContent"
+            )
+        else:
+            api_url = f"{self.api_endpoint}/v1beta/models/{self.model_name}:embedContent"
+
+        print(f"   🌐 API call: {api_url}", flush=True)
+
         try:
             # Use embed_content method from Gemini API
             response = self.client.models.embed_content(
@@ -712,7 +764,17 @@ class GeminiEmbedder:
 
 
 class EmbeddingProvider:
-    def __init__(self, provider: str, model: str, api_key: Optional[str], device: Optional[str] = None, gemini_api_key: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        provider: str,
+        model: str,
+        api_key: Optional[str],
+        device: Optional[str] = None,
+        gemini_api_key: Optional[str] = None,
+        gemini_use_vertexai: bool = False,
+        gemini_project: Optional[str] = None,
+        gemini_location: Optional[str] = None,
+    ) -> None:
         self.provider = provider
         self.model = model
         self.api_key = api_key
@@ -731,7 +793,13 @@ class EmbeddingProvider:
         elif provider == "huggingface":
             self.embedding_function = HuggingFaceEmbedder(model_name=model, device=device)
         elif provider == "gemini":
-            self.embedding_function = GeminiEmbedder(model_name=model, api_key=gemini_api_key or "")
+            self.embedding_function = GeminiEmbedder(
+                model_name=model,
+                api_key=gemini_api_key or "",
+                use_vertexai=gemini_use_vertexai,
+                google_project=gemini_project,
+                google_location=gemini_location,
+            )
         elif provider == "none":
             self.embedding_function = None
         else:
@@ -855,12 +923,19 @@ def export_to_chroma(args: argparse.Namespace, job_id: Optional[int] = None) -> 
     if gemini_api_key and not gemini_api_key.strip():
         gemini_api_key = None
     
+    gemini_use_vertexai = getattr(args, "gemini_use_vertexai", False)
+    gemini_project = getattr(args, "google_cloud_project", None)
+    gemini_location = getattr(args, "google_cloud_location", None)
+
     embedding_provider = EmbeddingProvider(
         provider=args.embedding_provider,
         model=args.embedding_model,
         api_key=args.openai_api_key,
         device=device,
         gemini_api_key=gemini_api_key,
+        gemini_use_vertexai=gemini_use_vertexai,
+        gemini_project=gemini_project,
+        gemini_location=gemini_location,
     )
 
     processed_records = 0
@@ -1070,6 +1145,25 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         "--gemini-api-key",
         default=os.getenv("GEMINI_API_KEY", ""),
         help="Gemini API key. Overrides environment variable if provided. Required for Gemini provider.",
+    )
+    parser.add_argument(
+        "--gemini-use-vertexai",
+        action="store_true",
+        default=os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "false").lower() in ("1", "true", "yes"),
+        help=(
+            "Use Gemini API via Vertex AI instead of the public Gemini Developer API. "
+            "Requires GOOGLE_CLOUD_PROJECT and GOOGLE_CLOUD_LOCATION."
+        ),
+    )
+    parser.add_argument(
+        "--google-cloud-project",
+        default=os.getenv("GOOGLE_CLOUD_PROJECT", ""),
+        help="Google Cloud project ID (required when --gemini-use-vertexai is set).",
+    )
+    parser.add_argument(
+        "--google-cloud-location",
+        default=os.getenv("GOOGLE_CLOUD_LOCATION", ""),
+        help="Google Cloud location/region (e.g., us-central1, europe-west1). Required for Vertex AI usage.",
     )
     parser.add_argument(
         "--device",

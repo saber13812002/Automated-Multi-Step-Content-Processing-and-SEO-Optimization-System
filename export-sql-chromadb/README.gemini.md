@@ -102,6 +102,27 @@ python export-sql-backup-to-chromadb.py \
 - `gemini-2.5-flash` - مدل سریع‌تر
 - مدل‌های Gemini 3 (وقتی منتشر شوند)
 
+### انتخاب Region (برای اروپا / آمریکا)
+
+اگر می‌خواهید درخواست‌ها از یک ناحیه مشخص (مثلاً `us-central1` یا `europe-west1`) ارسال شوند، دو راه دارید:
+
+1. **استفاده از Google Gemini Developer API (پیش‌فرض):** فقط به API Key نیاز دارد (`GEMINI_API_KEY`). در این حالت گوگل خودش نزدیک‌ترین region را انتخاب می‌کند.
+2. **استفاده از Vertex AI (برای انتخاب Region):**
+   ```bash
+   export GOOGLE_GENAI_USE_VERTEXAI=true
+   export GOOGLE_CLOUD_PROJECT=gen-lang-client-0639415213
+   export GOOGLE_CLOUD_LOCATION=europe-west1   # یا us-central1 و ...
+   python export-sql-backup-to-chromadb.py \
+     --sql-path book_pages.sql \
+     --collection book_pages_gemini \
+     --embedding-provider gemini \
+     --embedding-model gemini-embedding-001 \
+     --gemini-use-vertexai \
+     --google-cloud-project your-gcp-project \
+     --google-cloud-location europe-west1
+   ```
+   در حالت Vertex AI دیگر نیازی به `GEMINI_API_KEY` نیست، ولی باید دسترسی سرویس به GCP تنظیم شده باشد (ADC / Service Account).
+
 ---
 
 ## استفاده در Search
