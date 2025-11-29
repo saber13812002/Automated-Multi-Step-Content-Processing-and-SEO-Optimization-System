@@ -8,3 +8,7 @@ requests==2.32.3
 soupsieve==2.6
 typing_extensions==4.13.0
 urllib3==2.3.0
+numpy>=1.21.0
+pydub>=0.25.1
+torch>=2.0.0
+torchaudio>=2.0.0

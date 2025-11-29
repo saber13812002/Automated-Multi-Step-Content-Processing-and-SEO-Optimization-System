@@ -246,11 +246,6 @@ def process_directory(directory_path='.', model_name='large', language='ar', log
         pass
 
     with concurrent.futures.ProcessPoolExecutor(max_workers=len(available_gpus)) as executor:
-        futures = [(executor.submit(process_file_with_gpu, t), t[0]) for t in tasks]
-        for fut, src_file in concurrent.futures.as_completed([f for f, _ in futures]):
-            pass
-    # The above attempt to use as_completed with tuple unpacking is incorrect; implement correctly:
-    with concurrent.futures.ProcessPoolExecutor(max_workers=len(available_gpus)) as executor:
         future_to_file = {executor.submit(process_file_with_gpu, t): t[0] for t in tasks}
         for fut in concurrent.futures.as_completed(future_to_file):
             src_file = future_to_file[fut]
