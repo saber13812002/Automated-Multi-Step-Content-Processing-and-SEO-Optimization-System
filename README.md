@@ -6,6 +6,11 @@ root@aiu24:/# cd /root/automated-multi-step-content-processing-and-seo-optimizat
 root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system# cd Subtitle-Generator/                                             
 root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system/Subtitle-Generator# source myenv/bin/activate                       
 
+```
+ pip install -r requirements.txt
+ pip install torch whisper pydub
+```
+
 
 (myenv) root@aiu24:~/automated-multi-step-content-processing-and-seo-optimization-system/Subtitle-Generator# python3 subAlljob.py --language fa --directory /mnt/networkshare/downloads/
 
