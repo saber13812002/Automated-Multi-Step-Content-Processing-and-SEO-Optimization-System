@@ -1,0 +1,32 @@
+{
+  "name": "whisper-cron-worker",
+  "version": "1.0.0",
+  "description": "Cron-based Whisper worker that processes files hourly and sends reports to Telegram/bot",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "keywords": [
+    "whisper",
+    "subtitle",
+    "cron",
+    "telegram",
+    "scheduler"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-cron": "^3.0.3",
+    "dotenv": "^16.4.5",
+    "cors": "^2.8.5",
+    "axios": "^1.7.7",
+    "fs-extra": "^11.2.0",
+    "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30"
+  }
+}
+

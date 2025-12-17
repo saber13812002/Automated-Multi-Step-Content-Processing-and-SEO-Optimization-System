@@ -1,0 +1,32 @@
+{
+  "name": "whisper-task-runner",
+  "version": "1.0.0",
+  "description": "GPU-based Whisper subtitle processing worker with MySQL task queue and time window control",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "keywords": [
+    "whisper",
+    "subtitle",
+    "gpu",
+    "mysql",
+    "task-queue"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.19.2",
+    "mysql2": "^3.9.3",
+    "dotenv": "^16.4.5",
+    "cors": "^2.8.5",
+    "multer": "^1.4.5-lts.1",
+    "fs-extra": "^11.2.0",
+    "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30"
+  }
+}
+

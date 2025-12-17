@@ -1,0 +1,10 @@
+node_modules/
+.env
+*.log
+.DS_Store
+media/input/*
+!media/input/.gitkeep
+media/output/*
+!media/output/.gitkeep
+config/
+

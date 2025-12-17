@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: whisper-task-runner-app
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    ports:
+      - "${API_PORT:-3000}:3000"
+    volumes:
+      - ./media/input:/media/input:ro
+      - ./media/output:/media/output:rw
+      - whisper_model_cache:/root/.cache/whisper
+    environment:
+      - NODE_ENV=${NODE_ENV:-production}
+      - API_PORT=${API_PORT:-3000}
+      - ACTIVE_START_HOUR=${ACTIVE_START_HOUR:-23}
+      - ACTIVE_END_HOUR=${ACTIVE_END_HOUR:-5}
+      - TIMEZONE=${TIMEZONE:-Asia/Tehran}
+      - INPUT_DIR=${INPUT_DIR:-/media/input}
+      - OUTPUT_DIR=${OUTPUT_DIR:-/media/output}
+      - LOCK_EXTENSION=${LOCK_EXTENSION:-.lock}
+      - BATCH_SIZE=${BATCH_SIZE:-2}
+      - MACHINE_ID=${MACHINE_ID:-worker-1}
+      - MYSQL_HOST=${MYSQL_HOST:-mysql}
+      - MYSQL_PORT=${MYSQL_PORT:-3306}
+      - MYSQL_USER=${MYSQL_USER:-whisper}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-whisper123}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-whisper_tasks}
+      - TASK_TIMEOUT_MINUTES=${TASK_TIMEOUT_MINUTES:-120}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - whisper_network
+
+  mysql:
+    image: mysql:8.0
+    container_name: whisper-task-runner-mysql
+    restart: unless-stopped
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-root123}
+      - MYSQL_DATABASE=${MYSQL_DATABASE:-whisper_tasks}
+      - MYSQL_USER=${MYSQL_USER:-whisper}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD:-whisper123}
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root123}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - whisper_network
+
+  adminer:
+    image: adminer:latest
+    container_name: whisper-task-runner-adminer
+    restart: unless-stopped
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=mysql
+    depends_on:
+      - mysql
+    networks:
+      - whisper_network
+
+volumes:
+  mysql_data:
+    driver: local
+  whisper_model_cache:
+    driver: local
+
+networks:
+  whisper_network:
+    driver: bridge
+
