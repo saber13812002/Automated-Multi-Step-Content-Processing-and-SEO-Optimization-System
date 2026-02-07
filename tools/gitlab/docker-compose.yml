@@ -1,35 +1,69 @@
 version: "3.9"
 
 services:
+  postgres:
+    image: postgres:14
+    container_name: gitlab-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: gitlabhq_production
+      POSTGRES_USER: gitlab
+      POSTGRES_PASSWORD: gitlab
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  redis:
+    image: redis:7
+    container_name: gitlab-redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
   gitlab:
     image: gitlab/gitlab-ce:16.3.2-ce.0
     container_name: gitlab
     hostname: gitlab.local
     restart: always
+    depends_on:
+      - postgres
+      - redis
+
     ports:
-      - "80:80"       # HTTP روی همه‌ی IPها
-      - "443:443"     # HTTPS
-      - "2222:22"     # SSH
+      - "81:80"
+      - "444:443"
+      - "2222:22"
+
     environment:
+      GITLAB_ROOT_PASSWORD: "MyStrongPassword123!"
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://192.168.1.68'   # جایگزین با IP سرور یا دامنه
+        external_url 'http://192.168.1.84'
 
-        # Use external PostgreSQL
+        gitlab_kas['enable'] = false
+
+
+        # ---------- PostgreSQL ----------
         postgresql['enable'] = false
-        gitlab_rails['db_adapter'] = 'postgresql'
+        gitlab_rails['db_adapter']  = 'postgresql'
         gitlab_rails['db_encoding'] = 'utf8'
-        gitlab_rails['db_collation'] = 'en_US.UTF-8'
         gitlab_rails['db_database'] = 'gitlabhq_production'
-        gitlab_rails['db_username'] = 'postgres'
-        gitlab_rails['db_password'] = 'postgres'
-        gitlab_rails['db_host'] = '192.168.1.68'   # یا localhost اگر روی همان سرور است
-        gitlab_rails['db_port'] = 5433
+        gitlab_rails['db_username'] = 'gitlab'
+        gitlab_rails['db_password'] = 'gitlab'
+        gitlab_rails['db_host']     = 'postgres'
+        gitlab_rails['db_port']     = 5432
 
-        # Redis خارجی
+        # ---------- Redis ----------
         redis['enable'] = false
-        gitlab_rails['redis_host'] = '192.168.1.68'
-        gitlab_rails['redis_port'] = 6379   # پورت Redis سرور
-        # gitlab_rails['redis_password'] = '' # اگر پسورد دارد اینجا بگذار
+        gitlab_rails['redis_host'] = 'redis'
+        gitlab_rails['redis_port'] = 6379
+
+        # ---------- Performance ----------
+        puma['worker_processes'] = 2
+        sidekiq['concurrency'] = 10
 
     volumes:
       - gitlab_config:/etc/gitlab
@@ -40,3 +74,6 @@ volumes:
   gitlab_config:
   gitlab_logs:
   gitlab_data:
+  postgres_data:
+  redis_data:
+
