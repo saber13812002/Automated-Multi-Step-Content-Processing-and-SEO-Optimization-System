@@ -41,7 +41,7 @@ services:
     environment:
       GITLAB_ROOT_PASSWORD: "MyStrongPassword123!"
       GITLAB_OMNIBUS_CONFIG: |
-        external_url 'http://192.168.1.84'
+        external_url 'http://192.168.1.84:81'
 
         gitlab_kas['enable'] = false
 
