@@ -43,6 +43,11 @@ services:
       GITLAB_OMNIBUS_CONFIG: |
         external_url 'http://192.168.1.84:81'
 
+        # ---------- Nginx Configuration ----------
+        nginx['listen_addresses'] = ['0.0.0.0']
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+
         gitlab_kas['enable'] = false
 
 
