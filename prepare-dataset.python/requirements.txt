@@ -1,0 +1,5 @@
+rapidfuzz
+pydub
+librosa
+soundfile
+datasets

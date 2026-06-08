@@ -17,7 +17,7 @@ services:
     volumes:
       - ./media/input:/media/input:ro
       - ./media/output:/media/output:rw
-      - whisper_model_cache:/root/.cache/whisper
+      - whisper_model_cache:/home/whisper/.cache/whisper
       - cron_config:/app/config
     environment:
       - NODE_ENV=${NODE_ENV:-production}

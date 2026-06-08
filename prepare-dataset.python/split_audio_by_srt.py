@@ -79,6 +79,7 @@ def split_audio_by_srt(
         
         valid_segments.append({
             'audio': str(audio_file),
+            'transcript': str(text_file),
             'text': text,
             'duration': duration / 1000.0
         })
@@ -87,13 +88,19 @@ def split_audio_by_srt(
     print(f"📂 صوت: {audio_dir}")
     print(f"📂 متن: {transcript_dir}")
     
-    # ذخیره metadata
+    # ذخیره segments_info.json (canonical schema for prepare_for_training.py)
     import json
+    segments_path = Path(output_dir) / "segments_info.json"
+    with open(segments_path, 'w', encoding='utf-8') as f:
+        json.dump(valid_segments, f, ensure_ascii=False, indent=2)
+
+    # Also write metadata.json alias for backward compatibility
     metadata_path = Path(output_dir) / "metadata.json"
     with open(metadata_path, 'w', encoding='utf-8') as f:
         json.dump(valid_segments, f, ensure_ascii=False, indent=2)
-    
-    print(f"💾 Metadata: {metadata_path}")
+
+    print(f"💾 Segments info: {segments_path}")
+    print(f"💾 Metadata alias: {metadata_path}")
 
 if __name__ == "__main__":
     import argparse

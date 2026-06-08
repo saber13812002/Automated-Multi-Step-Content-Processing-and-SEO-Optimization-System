@@ -1,0 +1,14 @@
+.env
+.env.*
+web_service/.env
+__pycache__
+*.pyc
+*.pyo
+.git
+.gitignore
+*.md
+.pytest_cache
+.mypy_cache
+htmlcov
+.coverage
+node_modules
