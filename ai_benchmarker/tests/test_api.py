@@ -97,6 +97,27 @@ def test_transcription_and_compare_flow(client: TestClient):
     assert benchmark.lcs_score >= 0.0
 
 
+def test_create_audio_json_and_admin(client: TestClient):
+    response = client.post(
+        "/api/v1/audio/json",
+        json={
+            "file_name": "ref.txt",
+            "approved_text": "hello world reference",
+        },
+    )
+    assert response.status_code == 201
+    data = response.json()
+    assert data["audio_guid"]
+    assert data["reference_transcription_id"] >= 1
+
+    admin = client.get("/admin")
+    assert admin.status_code == 200
+
+    listings = client.get("/api/v1/audio")
+    assert listings.status_code == 200
+    assert len(listings.json()["items"]) >= 1
+
+
 def test_compare_returns_404_for_missing_transcription(client: TestClient):
     db = next(get_db())
     _seed_audio(db)

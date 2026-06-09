@@ -2,14 +2,22 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.responses import FileResponse, HTMLResponse
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .core import AIBenchmark
 from .database import get_db, init_db
 from .schemas import (
+    AudioMasterCreateJson,
+    AudioMasterCreateResponse,
+    AudioMasterListResponse,
+    AudioMasterResponse,
     BenchmarkResultResponse,
     CompareRequest,
     HealthResponse,
@@ -17,9 +25,11 @@ from .schemas import (
     TranscriptionResponse,
 )
 from .storage import AudioMaster, BenchmarkResult, Transcription
+from .utils import generate_audio_guid, parse_subtitle_text
 
 logger = logging.getLogger(__name__)
 benchmarker = AIBenchmark()
+_STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 @asynccontextmanager
@@ -29,6 +39,25 @@ async def lifespan(_: FastAPI):
     yield
 
 
+def _create_transcription_record(
+    db: Session,
+    audio_guid: str,
+    model_name: str,
+    raw_text: str,
+) -> Transcription:
+    normalized_text = benchmarker._normalize_text(raw_text)
+    transcription = Transcription(
+        audio_guid=audio_guid,
+        model_name=model_name,
+        raw_text=raw_text,
+        normalized_text=normalized_text,
+    )
+    db.add(transcription)
+    db.commit()
+    db.refresh(transcription)
+    return transcription
+
+
 def create_app() -> FastAPI:
     settings = get_settings()
     logging.basicConfig(level=settings.log_level)
@@ -36,13 +65,101 @@ def create_app() -> FastAPI:
     application = FastAPI(
         title="AI Benchmarker",
         description="Benchmark and evaluate AI transcription outputs",
-        version="0.1.0",
+        version="0.2.0",
         lifespan=lifespan,
     )
 
     @application.get("/health", response_model=HealthResponse)
     def health() -> HealthResponse:
         return HealthResponse()
+
+    @application.get("/admin", response_class=HTMLResponse)
+    def admin_panel() -> FileResponse:
+        admin_file = _STATIC_DIR / "admin.html"
+        if not admin_file.exists():
+            raise HTTPException(status_code=404, detail="Admin panel not found.")
+        return FileResponse(admin_file)
+
+    def _register_audio_master(
+        db: Session,
+        file_name: str,
+        text: str,
+    ) -> AudioMasterCreateResponse:
+        audio_guid = generate_audio_guid()
+        audio = AudioMaster(
+            audio_guid=audio_guid,
+            file_name=file_name,
+            approved_text=text,
+        )
+        db.add(audio)
+        db.commit()
+        db.refresh(audio)
+        reference = _create_transcription_record(
+            db,
+            audio_guid=audio_guid,
+            model_name="reference",
+            raw_text=text,
+        )
+        return AudioMasterCreateResponse(
+            audio_guid=audio.audio_guid,
+            file_name=audio.file_name,
+            approved_text=audio.approved_text,
+            reference_transcription_id=reference.id,
+        )
+
+    @application.post(
+        "/api/v1/audio/json",
+        response_model=AudioMasterCreateResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_audio_master_json(
+        payload: AudioMasterCreateJson,
+        db: Session = Depends(get_db),
+    ) -> AudioMasterCreateResponse:
+        text = parse_subtitle_text(payload.approved_text, payload.file_name)
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Reference text is empty.")
+        return _register_audio_master(db, payload.file_name, text)
+
+    @application.get("/api/v1/audio", response_model=AudioMasterListResponse)
+    def list_audio_masters(db: Session = Depends(get_db)) -> AudioMasterListResponse:
+        rows = db.scalars(select(AudioMaster).order_by(AudioMaster.file_name)).all()
+        items: List[AudioMasterResponse] = []
+        for audio in rows:
+            count = db.scalar(
+                select(func.count())
+                .select_from(Transcription)
+                .where(Transcription.audio_guid == audio.audio_guid)
+            )
+            items.append(
+                AudioMasterResponse(
+                    audio_guid=audio.audio_guid,
+                    file_name=audio.file_name,
+                    approved_text=audio.approved_text,
+                    transcription_count=count or 0,
+                )
+            )
+        return AudioMasterListResponse(items=items)
+
+    @application.get(
+        "/api/v1/audio/{audio_guid}",
+        response_model=AudioMasterResponse,
+    )
+    def get_audio_master(audio_guid: str, db: Session = Depends(get_db)) -> AudioMasterResponse:
+        audio = db.get(AudioMaster, audio_guid)
+        if audio is None:
+            raise HTTPException(status_code=404, detail="Audio not found.")
+        count = db.scalar(
+            select(func.count())
+            .select_from(Transcription)
+            .where(Transcription.audio_guid == audio_guid)
+        )
+        return AudioMasterResponse(
+            audio_guid=audio.audio_guid,
+            file_name=audio.file_name,
+            approved_text=audio.approved_text,
+            transcription_count=count or 0,
+        )
 
     @application.post(
         "/api/v1/transcription",
@@ -60,23 +177,41 @@ def create_app() -> FastAPI:
                 detail=f"AudioMaster with audio_guid '{payload.audio_guid}' not found.",
             )
 
-        normalized_text = benchmarker._normalize_text(payload.raw_text)
-        transcription = Transcription(
+        text = parse_subtitle_text(payload.raw_text)
+        transcription = _create_transcription_record(
+            db,
             audio_guid=payload.audio_guid,
             model_name=payload.model_name,
-            raw_text=payload.raw_text,
-            normalized_text=normalized_text,
+            raw_text=text,
         )
-        db.add(transcription)
-        db.commit()
-        db.refresh(transcription)
 
         return TranscriptionResponse(
             id=transcription.id,
             audio_guid=transcription.audio_guid,
             model_name=transcription.model_name,
+            raw_text=transcription.raw_text,
             normalized_text=transcription.normalized_text,
         )
+
+    @application.get("/api/v1/transcriptions", response_model=List[TranscriptionResponse])
+    def list_transcriptions(
+        audio_guid: Optional[str] = None,
+        db: Session = Depends(get_db),
+    ) -> List[TranscriptionResponse]:
+        query = select(Transcription).order_by(Transcription.id.desc())
+        if audio_guid:
+            query = query.where(Transcription.audio_guid == audio_guid)
+        rows = db.scalars(query).all()
+        return [
+            TranscriptionResponse(
+                id=row.id,
+                audio_guid=row.audio_guid,
+                model_name=row.model_name,
+                raw_text=row.raw_text,
+                normalized_text=row.normalized_text,
+            )
+            for row in rows
+        ]
 
     @application.post(
         "/api/v1/compare",
@@ -122,11 +257,42 @@ def create_app() -> FastAPI:
             audio_guid=result.audio_guid,
             ref_id=result.ref_id,
             hyp_id=result.hyp_id,
+            ref_model_name=reference.model_name,
+            hyp_model_name=hypothesis.model_name,
             wer=result.wer,
             ngram_bigram=result.ngram_bigram,
             ngram_trigram=result.ngram_trigram,
             lcs_score=result.lcs_score,
         )
+
+    @application.get("/api/v1/benchmarks", response_model=List[BenchmarkResultResponse])
+    def list_benchmarks(
+        audio_guid: Optional[str] = None,
+        db: Session = Depends(get_db),
+    ) -> List[BenchmarkResultResponse]:
+        query = select(BenchmarkResult).order_by(BenchmarkResult.id.desc())
+        if audio_guid:
+            query = query.where(BenchmarkResult.audio_guid == audio_guid)
+        rows = db.scalars(query).all()
+        results: List[BenchmarkResultResponse] = []
+        for row in rows:
+            ref = db.get(Transcription, row.ref_id)
+            hyp = db.get(Transcription, row.hyp_id)
+            results.append(
+                BenchmarkResultResponse(
+                    id=row.id,
+                    audio_guid=row.audio_guid,
+                    ref_id=row.ref_id,
+                    hyp_id=row.hyp_id,
+                    ref_model_name=ref.model_name if ref else None,
+                    hyp_model_name=hyp.model_name if hyp else None,
+                    wer=row.wer,
+                    ngram_bigram=row.ngram_bigram,
+                    ngram_trigram=row.ngram_trigram,
+                    lcs_score=row.lcs_score,
+                )
+            )
+        return results
 
     return application
 

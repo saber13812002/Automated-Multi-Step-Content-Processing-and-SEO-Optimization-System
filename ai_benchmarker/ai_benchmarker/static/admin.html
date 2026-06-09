@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Benchmarker Admin</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --card: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9cb3;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #22c55e;
+      --warn: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { margin: 0 0 8px; font-size: 1.6rem; }
+    .sub { color: var(--muted); margin-bottom: 24px; }
+    .grid { display: grid; gap: 16px; }
+    @media (min-width: 900px) { .grid-2 { grid-template-columns: 1fr 1fr; } }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .card h2 { margin: 0 0 12px; font-size: 1.1rem; }
+    label { display: block; margin: 10px 0 6px; color: var(--muted); font-size: 0.9rem; }
+    input[type="text"], input[type="file"], select, textarea {
+      width: 100%;
+      background: #0d1117;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+    }
+    textarea { min-height: 120px; resize: vertical; }
+    button {
+      margin-top: 12px;
+      background: var(--accent);
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font: inherit;
+    }
+    button:hover { background: var(--accent-hover); }
+    button.secondary { background: #334155; }
+    .guid-box {
+      margin-top: 12px;
+      padding: 12px;
+      background: #0d1117;
+      border: 1px dashed var(--success);
+      border-radius: 8px;
+      word-break: break-all;
+      font-family: monospace;
+      font-size: 0.9rem;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: right; }
+    th { color: var(--muted); font-weight: 600; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #1e3a5f; font-size: 0.8rem; }
+    .metrics { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .metric {
+      background: #0d1117;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .metric .val { font-size: 1.3rem; font-weight: 700; color: var(--warn); }
+    .metric .lbl { color: var(--muted); font-size: 0.8rem; }
+    .msg { margin-top: 10px; padding: 10px; border-radius: 8px; font-size: 0.9rem; }
+    .msg.ok { background: #14532d; }
+    .msg.err { background: #7f1d1d; }
+    .steps { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+    .step { padding: 6px 12px; border-radius: 999px; background: #1e293b; font-size: 0.85rem; }
+    .step.active { background: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>پنل ادمین AI Benchmarker</h1>
+    <p class="sub">فایل مرجع آپلود کنید، GUID بگیرید، زیرنویس/متن مدل اضافه کنید و مقایسه کنید.</p>
+
+    <div class="steps">
+      <span class="step active">۱. فایل مرجع</span>
+      <span class="step">۲. Transcription</span>
+      <span class="step">۳. مقایسه</span>
+    </div>
+
+    <div class="grid grid-2">
+      <section class="card">
+        <h2>۱. ثبت فایل مرجع (Reference)</h2>
+        <label>نام فایل</label>
+        <input id="refFileName" type="text" value="reference.txt" />
+        <label>متن مرجع (اختیاری اگر فایل آپلود می‌کنید)</label>
+        <textarea id="refText" placeholder="متن تأییدشده مرجع را اینجا بگذارید..."></textarea>
+        <label>یا فایل txt / srt آپلود کنید</label>
+        <input id="refFile" type="file" accept=".txt,.srt,.vtt,text/plain" />
+        <button onclick="createReference()">ثبت و دریافت GUID</button>
+        <div id="guidBox" class="guid-box" style="display:none"></div>
+        <div id="refMsg"></div>
+      </section>
+
+      <section class="card">
+        <h2>۲. افزودن Transcription مدل</h2>
+        <label>Audio GUID</label>
+        <input id="txGuid" type="text" placeholder="GUID از مرحله قبل" />
+        <label>نام مدل</label>
+        <input id="txModel" type="text" value="whisper-large-v3" />
+        <label>متن / زیرنویس</label>
+        <textarea id="txText" placeholder="خروجی مدل یا محتوای srt..."></textarea>
+        <button onclick="addTranscription()">ثبت Transcription</button>
+        <div id="txMsg"></div>
+      </section>
+    </div>
+
+    <section class="card" style="margin-top:16px">
+      <h2>۳. مقایسه (Benchmark)</h2>
+      <div class="grid grid-2">
+        <div>
+          <label>مرجع (ref)</label>
+          <select id="refSelect"></select>
+        </div>
+        <div>
+          <label>فرضیه (hyp)</label>
+          <select id="hypSelect"></select>
+        </div>
+      </div>
+      <button onclick="runCompare()">اجرای مقایسه</button>
+      <div id="compareMetrics" style="margin-top:12px"></div>
+      <div id="compareMsg"></div>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <h2>لیست Audio ها</h2>
+      <button class="secondary" onclick="refreshAll()">بروزرسانی</button>
+      <div id="audioList" style="margin-top:12px"></div>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <h2>نتایج Benchmark</h2>
+      <div id="benchmarkList"></div>
+    </section>
+  </div>
+
+  <script>
+    const API = "";
+    let currentGuid = "";
+
+    function showMsg(elId, text, ok = true) {
+      const el = document.getElementById(elId);
+      el.className = "msg " + (ok ? "ok" : "err");
+      el.textContent = text;
+    }
+
+    async function readFileText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsText(file, "UTF-8");
+      });
+    }
+
+    async function createReference() {
+      let fileName = document.getElementById("refFileName").value || "reference.txt";
+      let text = document.getElementById("refText").value.trim();
+      const fileInput = document.getElementById("refFile");
+      if (fileInput.files[0]) {
+        fileName = fileInput.files[0].name || fileName;
+        text = await readFileText(fileInput.files[0]);
+      }
+      if (!text.trim()) {
+        showMsg("refMsg", "متن مرجع یا فایل الزامی است.", false);
+        return;
+      }
+
+      try {
+        const res = await fetch(API + "/api/v1/audio/json", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file_name: fileName, approved_text: text }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+
+        currentGuid = data.audio_guid;
+        document.getElementById("guidBox").style.display = "block";
+        document.getElementById("guidBox").innerHTML =
+          `<strong>GUID:</strong> ${data.audio_guid}<br>` +
+          `<strong>Reference ID:</strong> ${data.reference_transcription_id}<br>` +
+          `<strong>File:</strong> ${data.file_name}`;
+        document.getElementById("txGuid").value = data.audio_guid;
+        showMsg("refMsg", "فایل مرجع ثبت شد. Transcription مرجع هم ساخته شد.", true);
+        await refreshAll();
+      } catch (e) {
+        showMsg("refMsg", e.message, false);
+      }
+    }
+
+    async function addTranscription() {
+      const payload = {
+        audio_guid: document.getElementById("txGuid").value.trim(),
+        model_name: document.getElementById("txModel").value.trim(),
+        raw_text: document.getElementById("txText").value.trim(),
+      };
+      try {
+        const res = await fetch(API + "/api/v1/transcription", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+        showMsg("txMsg", `ثبت شد — ID: ${data.id} | مدل: ${data.model_name}`, true);
+        await refreshAll();
+      } catch (e) {
+        showMsg("txMsg", e.message, false);
+      }
+    }
+
+    async function loadTranscriptions(guid) {
+      const url = guid ? `/api/v1/transcriptions?audio_guid=${encodeURIComponent(guid)}` : "/api/v1/transcriptions";
+      const res = await fetch(API + url);
+      return res.json();
+    }
+
+    function fillSelects(items) {
+      const refSel = document.getElementById("refSelect");
+      const hypSel = document.getElementById("hypSelect");
+      const opts = items.map(t =>
+        `<option value="${t.id}">#${t.id} — ${t.model_name} — ${t.normalized_text.slice(0, 40)}...</option>`
+      ).join("");
+      refSel.innerHTML = opts;
+      hypSel.innerHTML = opts;
+      const refItem = items.find(t => t.model_name === "reference");
+      if (refItem) refSel.value = refItem.id;
+      if (items.length > 1) {
+        const hypItem = items.find(t => t.model_name !== "reference") || items[items.length - 1];
+        hypSel.value = hypItem.id;
+      }
+    }
+
+    async function runCompare() {
+      const payload = {
+        ref_id: parseInt(document.getElementById("refSelect").value, 10),
+        hyp_id: parseInt(document.getElementById("hypSelect").value, 10),
+      };
+      try {
+        const res = await fetch(API + "/api/v1/compare", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || JSON.stringify(data));
+
+        document.getElementById("compareMetrics").innerHTML = `
+          <div class="metrics">
+            <div class="metric"><div class="val">${(data.wer * 100).toFixed(1)}%</div><div class="lbl">WER</div></div>
+            <div class="metric"><div class="val">${(data.ngram_bigram * 100).toFixed(1)}%</div><div class="lbl">Bi-gram</div></div>
+            <div class="metric"><div class="val">${(data.ngram_trigram * 100).toFixed(1)}%</div><div class="lbl">Tri-gram</div></div>
+            <div class="metric"><div class="val">${(data.lcs_score * 100).toFixed(1)}%</div><div class="lbl">LCS</div></div>
+          </div>`;
+        showMsg("compareMsg",
+          `مقایسه #${data.id}: ${data.ref_model_name} vs ${data.hyp_model_name}`, true);
+        await refreshBenchmarks();
+      } catch (e) {
+        showMsg("compareMsg", e.message, false);
+      }
+    }
+
+    async function refreshAudioList() {
+      const res = await fetch(API + "/api/v1/audio");
+      const data = await res.json();
+      const html = `<table>
+        <tr><th>GUID</th><th>فایل</th><th>تعداد</th><th>متن</th></tr>
+        ${data.items.map(a => `<tr>
+          <td><span class="badge">${a.audio_guid.slice(0,8)}...</span></td>
+          <td>${a.file_name}</td>
+          <td>${a.transcription_count}</td>
+          <td>${a.approved_text.slice(0, 60)}...</td>
+        </tr>`).join("")}
+      </table>`;
+      document.getElementById("audioList").innerHTML = html || "<p>خالی</p>";
+    }
+
+    async function refreshBenchmarks() {
+      const guid = document.getElementById("txGuid").value.trim() || currentGuid;
+      const url = guid ? `/api/v1/benchmarks?audio_guid=${encodeURIComponent(guid)}` : "/api/v1/benchmarks";
+      const res = await fetch(API + url);
+      const data = await res.json();
+      const html = `<table>
+        <tr><th>#</th><th>ref</th><th>hyp</th><th>WER</th><th>Bi</th><th>Tri</th><th>LCS</th></tr>
+        ${data.map(b => `<tr>
+          <td>${b.id}</td>
+          <td>${b.ref_model_name || b.ref_id}</td>
+          <td>${b.hyp_model_name || b.hyp_id}</td>
+          <td>${(b.wer*100).toFixed(1)}%</td>
+          <td>${(b.ngram_bigram*100).toFixed(1)}%</td>
+          <td>${(b.ngram_trigram*100).toFixed(1)}%</td>
+          <td>${(b.lcs_score*100).toFixed(1)}%</td>
+        </tr>`).join("")}
+      </table>`;
+      document.getElementById("benchmarkList").innerHTML = html || "<p>هنوز نتیجه‌ای نیست</p>";
+    }
+
+    async function refreshAll() {
+      const guid = document.getElementById("txGuid").value.trim() || currentGuid;
+      const items = await loadTranscriptions(guid);
+      if (items.length) fillSelects(items);
+      await refreshAudioList();
+      await refreshBenchmarks();
+    }
+
+    refreshAll();
+  </script>
+</body>
+</html>
