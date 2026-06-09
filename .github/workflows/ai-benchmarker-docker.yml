@@ -1,0 +1,41 @@
+name: Build AI Benchmarker Docker (offline-ready)
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "ai_benchmarker/**"
+      - ".github/workflows/ai-benchmarker-docker.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download Linux wheels
+        working-directory: ai_benchmarker
+        run: |
+          bash scripts/download-wheels-linux.sh
+
+      - name: Build Docker image (offline, no network)
+        working-directory: ai_benchmarker
+        run: |
+          docker build --network=none -t ai-benchmark:latest .
+
+      - name: Save image as tar
+        working-directory: ai_benchmarker
+        run: |
+          docker save -o ai-benchmark.tar ai-benchmark:latest
+          ls -lh ai-benchmark.tar
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-benchmark-docker
+          path: ai_benchmarker/ai-benchmark.tar
+          retention-days: 30

@@ -13,23 +13,54 @@
 
 ---
 
-## Docker آفلاین (توصیه‌شده برای سرور بدون اینترنت)
+## کدام روش را انتخاب کنم؟
 
-### مرحله ۱ — روی ویندوز (با اینترنت)
+| هدف | روش | نیاز به Docker روی ویندوز؟ |
+|-----|-----|---------------------------|
+| **فقط اجرا روی سرور** | `install-offline.sh` | خیر |
+| **Docker روی سرور** | GitHub Actions یا لینوکس با اینترنت | خیر (روی ویندوز) |
+
+> **مهم:** اگر wheels را با `download-wheels.ps1` روی ویندوز گرفته‌اید، آن‌ها `win_amd64` هستند و روی لینوکس/Docker کار نمی‌کنند. برای Docker حتماً `download-wheels-linux.ps1` یا GitHub Actions استفاده کنید.
+
+---
+
+## Docker آفلاین (برای سرور بدون اینترنت)
+
+### گزینه A — GitHub Actions (بدون Docker روی ویندوز) ⭐ توصیه‌شده
+
+1. کد را push کنید
+2. در GitHub بروید: **Actions → Build AI Benchmarker Docker → Run workflow**
+3. بعد از اتمام، فایل `ai-benchmark.tar` را از **Artifacts** دانلود کنید
+4. به سرور منتقل کنید:
+
+```bash
+docker load -i ai-benchmark.tar
+docker run -d --name ai-benchmarker -p 8000:8000 -v ai_benchmarker_data:/data ai-benchmark:latest
+```
+
+### گزینه B — ویندوز بدون Docker (فقط دانلود Linux wheels)
 
 ```powershell
 cd ai_benchmarker
-
-# یک‌بار: ایمیج پایه داکر
-docker pull python:3.12-slim
-
-# دانلود تمام wheelها (نسخه‌ها pinned هستند)
-powershell -ExecutionPolicy Bypass -File scripts/download-wheels.ps1
-
-# کامیت wheels به گیت
-git add wheels/ requirements*.txt Dockerfile docker-compose.yml scripts/
-git commit -m "Add offline wheels and Docker build"
+powershell -ExecutionPolicy Bypass -File scripts/download-wheels-linux.ps1
+git add wheels/
+git commit -m "Linux wheels for Docker"
 git push
+```
+
+سپس بیلد را روی **سرور لینوکس** (که Docker دارد) انجام دهید:
+
+```bash
+git pull
+bash scripts/build-offline-docker.sh
+```
+
+### گزینه C — ویندوز با Docker Desktop
+
+```powershell
+docker pull python:3.12-slim
+powershell -ExecutionPolicy Bypass -File scripts/download-wheels-linux.ps1
+powershell -ExecutionPolicy Bypass -File scripts/build-offline-docker.ps1
 ```
 
 ### مرحله ۲ — بیلد ایمیج (ویندوز یا سرور)
