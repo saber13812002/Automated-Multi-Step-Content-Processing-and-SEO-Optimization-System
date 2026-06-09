@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import csv
+import io
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import Depends, FastAPI, HTTPException, status
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import Depends, FastAPI, HTTPException, Query, status
+from fastapi.responses import FileResponse, HTMLResponse, Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -79,6 +81,13 @@ def create_app() -> FastAPI:
         if not admin_file.exists():
             raise HTTPException(status_code=404, detail="Admin panel not found.")
         return FileResponse(admin_file)
+
+    @application.get("/reports", response_class=HTMLResponse)
+    def reports_panel() -> FileResponse:
+        reports_file = _STATIC_DIR / "reports.html"
+        if not reports_file.exists():
+            raise HTTPException(status_code=404, detail="Reports page not found.")
+        return FileResponse(reports_file)
 
     def _register_audio_master(
         db: Session,
@@ -265,15 +274,51 @@ def create_app() -> FastAPI:
             lcs_score=result.lcs_score,
         )
 
+    def _benchmark_rows(db: Session, audio_guid: Optional[str] = None) -> list:
+        query = select(BenchmarkResult).order_by(BenchmarkResult.id.desc())
+        if audio_guid:
+            query = query.where(BenchmarkResult.audio_guid == audio_guid)
+        return db.scalars(query).all()
+
+    @application.get("/api/v1/benchmarks/export.csv")
+    def export_benchmarks_csv(
+        audio_guid: Optional[str] = Query(None),
+        db: Session = Depends(get_db),
+    ) -> Response:
+        rows = _benchmark_rows(db, audio_guid)
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow([
+            "id", "audio_guid", "ref_model", "hyp_model",
+            "wer", "ngram_bigram", "ngram_trigram", "lcs_score",
+        ])
+        for row in rows:
+            ref = db.get(Transcription, row.ref_id)
+            hyp = db.get(Transcription, row.hyp_id)
+            writer.writerow([
+                row.id,
+                row.audio_guid,
+                ref.model_name if ref else "",
+                hyp.model_name if hyp else "",
+                row.wer,
+                row.ngram_bigram,
+                row.ngram_trigram,
+                row.lcs_score,
+            ])
+        return Response(
+            content=buffer.getvalue(),
+            media_type="text/csv",
+            headers={
+                "Content-Disposition": "attachment; filename=benchmark_results.csv",
+            },
+        )
+
     @application.get("/api/v1/benchmarks", response_model=List[BenchmarkResultResponse])
     def list_benchmarks(
         audio_guid: Optional[str] = None,
         db: Session = Depends(get_db),
     ) -> List[BenchmarkResultResponse]:
-        query = select(BenchmarkResult).order_by(BenchmarkResult.id.desc())
-        if audio_guid:
-            query = query.where(BenchmarkResult.audio_guid == audio_guid)
-        rows = db.scalars(query).all()
+        rows = _benchmark_rows(db, audio_guid)
         results: List[BenchmarkResultResponse] = []
         for row in rows:
             ref = db.get(Transcription, row.ref_id)

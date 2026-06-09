@@ -1,0 +1,30 @@
+name: AI Benchmarker Tests
+
+on:
+  push:
+    paths:
+      - "ai_benchmarker/**"
+      - ".github/workflows/ai-benchmarker-tests.yml"
+  pull_request:
+    paths:
+      - "ai_benchmarker/**"
+      - ".github/workflows/ai-benchmarker-tests.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install package with dev dependencies
+        run: pip install -e "./ai_benchmarker[dev]"
+
+      - name: Run pytest
+        working-directory: ai_benchmarker
+        env:
+          DATABASE_URL: sqlite://
+        run: pytest tests -v --tb=short

@@ -1,27 +1,14 @@
-import os
+import csv
+import io
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from ai_benchmarker.app import create_app
 from ai_benchmarker.core import AIBenchmark
-from ai_benchmarker.database import get_db, init_db, reset_engine, seed_audio_master
+from ai_benchmarker.database import get_db, seed_audio_master
 from ai_benchmarker.storage import BenchmarkResult, Transcription
-
-
-@pytest.fixture()
-def client(monkeypatch):
-    monkeypatch.setenv("DATABASE_URL", "sqlite://")
-    reset_engine()
-    init_db()
-
-    app = create_app()
-
-    with TestClient(app) as test_client:
-        yield test_client
-
-    reset_engine()
+from conftest import add_transcription, create_reference, run_compare
 
 
 def _seed_audio(db: Session) -> str:
@@ -116,6 +103,44 @@ def test_create_audio_json_and_admin(client: TestClient):
     listings = client.get("/api/v1/audio")
     assert listings.status_code == 200
     assert len(listings.json()["items"]) >= 1
+
+
+def test_reports_page(client: TestClient):
+    response = client.get("/reports")
+    assert response.status_code == 200
+    assert "گزارش" in response.text or "Benchmark" in response.text
+
+
+def test_list_transcriptions_and_benchmarks(client: TestClient):
+    ref = create_reference(client, text="one two three four five")
+    hyp = add_transcription(client, ref["audio_guid"], "test-model", "one two three")
+    run_compare(client, ref["reference_transcription_id"], hyp["id"])
+
+    tx = client.get(f"/api/v1/transcriptions?audio_guid={ref['audio_guid']}")
+    assert tx.status_code == 200
+    assert len(tx.json()) >= 2
+
+    benchmarks = client.get(f"/api/v1/benchmarks?audio_guid={ref['audio_guid']}")
+    assert benchmarks.status_code == 200
+    assert len(benchmarks.json()) >= 1
+
+
+def test_export_csv_returns_valid_rows(client: TestClient):
+    ref = create_reference(client, text="alpha beta gamma delta")
+    hyp = add_transcription(client, ref["audio_guid"], "csv-model", "alpha beta gamma")
+    run_compare(client, ref["reference_transcription_id"], hyp["id"])
+
+    response = client.get(f"/api/v1/benchmarks/export.csv?audio_guid={ref['audio_guid']}")
+    assert response.status_code == 200
+    assert "text/csv" in response.headers.get("content-type", "")
+    assert "attachment" in response.headers.get("content-disposition", "")
+
+    reader = csv.DictReader(io.StringIO(response.text))
+    rows = list(reader)
+    assert len(rows) >= 1
+    assert "wer" in rows[0]
+    assert "ref_model" in rows[0]
+    assert rows[0]["hyp_model"] == "csv-model"
 
 
 def test_compare_returns_404_for_missing_transcription(client: TestClient):
