@@ -1,0 +1,17 @@
+[Unit]
+Description=AI Benchmarker API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/saberprojects/automated-projects/ai_benchmarker
+Environment=APP_HOST=0.0.0.0
+Environment=APP_PORT=8090
+Environment=DATABASE_URL=sqlite:////root/saberprojects/automated-projects/ai_benchmarker/ai_benchmarker.db
+ExecStart=/root/saberprojects/automated-projects/ai_benchmarker/scripts/run.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

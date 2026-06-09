@@ -8,9 +8,9 @@ VENV="${ROOT}/.venv"
 
 if [[ ! -d "${WHEELS_DIR}" ]] || [[ -z "$(ls -A "${WHEELS_DIR}"/*.whl 2>/dev/null)" ]]; then
   echo "ERROR: ${WHEELS_DIR} is empty or missing."
-  echo "On a machine with internet, run:"
-  echo "  bash scripts/download-wheels.sh"
-  echo "  # or: powershell -File scripts/download-wheels.ps1"
+  echo "On Windows (with internet, NO Docker needed), run:"
+  echo "  powershell -ExecutionPolicy Bypass -File scripts/download-wheels-linux.ps1"
+  echo "  git add wheels/ && git commit -m 'Linux wheels' && git push"
   exit 1
 fi
 
