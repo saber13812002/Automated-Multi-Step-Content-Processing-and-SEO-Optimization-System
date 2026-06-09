@@ -12,19 +12,49 @@
 
 ## نصب
 
+### روش ۱: آنلاین (سرور با دسترسی به PyPI)
+
 ```bash
 cd ai_benchmarker
-python -m venv .venv
+bash scripts/install-online.sh
 source .venv/bin/activate
-pip install -e ".[dev]"
+uvicorn ai_benchmarker.app:app --host 0.0.0.0 --port 8090 --reload
 ```
 
-یا:
+### روش ۲: آفلاین (سرور بدون دسترسی به PyPI)
+
+روی **یک ماشین با اینترنت** (لپ‌تاپ، CI، یا سرور دیگر):
 
 ```bash
-pip install -r requirements.txt
-pip install -e .
+cd ai_benchmarker
+bash scripts/download-wheels.sh
 ```
+
+پوشه `vendor/wheels/` را به سرور مقصد کپی کنید، سپس:
+
+```bash
+cd ai_benchmarker
+bash scripts/install-offline.sh
+source .venv/bin/activate
+uvicorn ai_benchmarker.app:app --host 0.0.0.0 --port 8090 --reload
+```
+
+### عیب‌یابی: `Network is unreachable`
+
+اگر `pip install` با خطای زیر شکست خورد:
+
+```
+Failed to establish a new connection ... Network is unreachable
+```
+
+یعنی سرور به PyPI/apt دسترسی ندارد (اغلب به‌خاطر IPv6 یا فایروال). `git push` ممکن است کار کند ولی `pip` نه.
+
+**راه‌حل‌ها:**
+
+1. **نصب آفلاین** — روش ۲ بالا (توصیه‌شده)
+2. **اولویت IPv4** — در `/etc/gai.conf` اضافه کنید: `precedence ::ffff:0:0/96 100`
+3. **پروکسی** — اگر پروکسی دارید: `export HTTPS_PROXY=http://proxy:port`
+4. **apt** — بعد از رفع شبکه: `apt install python3-fastapi python3-uvicorn python3-sqlalchemy python3-pydantic python3-dotenv`
 
 ## پیکربندی
 
