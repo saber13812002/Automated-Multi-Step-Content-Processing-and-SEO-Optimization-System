@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Install ai_benchmarker without internet using vendor/wheels/.
+# Install ai_benchmarker without internet using wheels/.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-WHEELS_DIR="${ROOT}/vendor/wheels"
+WHEELS_DIR="${ROOT}/wheels"
 VENV="${ROOT}/.venv"
 
-if [[ ! -d "${WHEELS_DIR}" ]] || [[ -z "$(ls -A "${WHEELS_DIR}" 2>/dev/null)" ]]; then
+if [[ ! -d "${WHEELS_DIR}" ]] || [[ -z "$(ls -A "${WHEELS_DIR}"/*.whl 2>/dev/null)" ]]; then
   echo "ERROR: ${WHEELS_DIR} is empty or missing."
   echo "On a machine with internet, run:"
   echo "  bash scripts/download-wheels.sh"
-  echo "Then copy vendor/wheels/ to this server."
+  echo "  # or: powershell -File scripts/download-wheels.ps1"
   exit 1
 fi
 
@@ -18,18 +18,16 @@ if [[ ! -d "${VENV}" ]]; then
   python3 -m venv "${VENV}"
 fi
 
-# Use existing setuptools in venv/system to avoid isolated build downloads.
 "${VENV}/bin/pip" install --upgrade pip setuptools wheel \
-  --no-index \
-  --find-links "${WHEELS_DIR}" \
-  || "${VENV}/bin/pip" install --upgrade pip setuptools wheel --no-build-isolation \
   --no-index \
   --find-links "${WHEELS_DIR}"
 
-"${VENV}/bin/pip" install \
+PIP_NO_BUILD_ISOLATION=1 "${VENV}/bin/pip" install \
   --no-index \
   --find-links "${WHEELS_DIR}" \
-  -e "${ROOT}[dev]"
+  --no-build-isolation \
+  -r "${ROOT}/requirements.txt" \
+  "${ROOT}"
 
 echo ""
 echo "Install complete. Activate and run:"

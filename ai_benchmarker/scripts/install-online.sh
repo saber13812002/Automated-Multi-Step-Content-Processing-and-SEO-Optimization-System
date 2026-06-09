@@ -16,7 +16,7 @@ export PIP_DEFAULT_TIMEOUT="${PIP_DEFAULT_TIMEOUT:-120}"
 "${VENV}/bin/pip" install --upgrade pip setuptools wheel
 
 # --no-build-isolation avoids a second pip round-trip for build deps.
-PIP_NO_BUILD_ISOLATION=1 "${VENV}/bin/pip" install --no-build-isolation -e "${ROOT}[dev]"
+PIP_NO_BUILD_ISOLATION=1 "${VENV}/bin/pip" install --no-build-isolation -r "${ROOT}/requirements.txt" -e "${ROOT}"
 
 echo ""
 echo "Install complete. Activate and run:"

@@ -1,21 +1,40 @@
 #!/usr/bin/env bash
-# Run this script on a machine WITH internet access.
-# It downloads all runtime + dev wheels into vendor/wheels/ for offline install.
+# Run on a machine WITH internet (Linux/macOS/Git Bash on Windows).
+# Downloads all wheels into wheels/ for offline pip install and Docker build.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-WHEELS_DIR="${ROOT}/vendor/wheels"
+WHEELS_DIR="${ROOT}/wheels"
+PYTHON="${PYTHON:-python3}"
 
 mkdir -p "${WHEELS_DIR}"
 
-python3 -m pip download \
+echo "==> Downloading build tools..."
+"${PYTHON}" -m pip download \
+  -r "${ROOT}/requirements.build.txt" \
+  -d "${WHEELS_DIR}"
+
+echo "==> Downloading runtime dependencies..."
+"${PYTHON}" -m pip download \
+  -r "${ROOT}/requirements.docker.txt" \
+  -d "${WHEELS_DIR}"
+
+echo "==> Downloading dev/test dependencies..."
+"${PYTHON}" -m pip download \
   -r "${ROOT}/requirements.txt" \
   -d "${WHEELS_DIR}"
 
-python3 -m pip download \
+echo "==> Building project wheel..."
+"${PYTHON}" -m pip wheel \
   "${ROOT}" \
-  -d "${WHEELS_DIR}"
+  --no-deps \
+  -w "${WHEELS_DIR}"
 
-echo "Wheels saved to: ${WHEELS_DIR}"
-echo "Copy the vendor/ folder to the offline server, then run:"
-echo "  bash scripts/install-offline.sh"
+COUNT="$(find "${WHEELS_DIR}" -maxdepth 1 -name '*.whl' | wc -l | tr -d ' ')"
+echo ""
+echo "Done. ${COUNT} wheel file(s) in: ${WHEELS_DIR}"
+echo ""
+echo "Next steps:"
+echo "  1. git add wheels/ && git commit && git push"
+echo "  2. On offline server: bash scripts/build-offline-docker.sh"
+echo "     OR transfer ai-benchmark.tar after docker save on this machine"

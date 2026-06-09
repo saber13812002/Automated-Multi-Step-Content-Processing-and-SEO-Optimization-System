@@ -1,0 +1,3 @@
+# Build tooling — downloaded into wheels/ for offline pip install.
+setuptools==75.6.0
+wheel==0.45.1
