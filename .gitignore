@@ -9,3 +9,6 @@ export-sql-chromadb/.env
 /export-sql-chromadb/web_service/.env
 /export-sql-chromadb/.venv/*
 /export-sql-chromadb/gen*.json
+
+# open-webui runtime data
+tools/open-web-ui/open-webui/
