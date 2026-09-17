@@ -12,3 +12,4 @@ export-sql-chromadb/.env
 
 # open-webui runtime data
 tools/open-web-ui/open-webui/
+tools/n8n/.env
